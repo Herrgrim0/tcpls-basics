@@ -22,7 +22,7 @@ use crate::suites::PartiallyExtractedSecrets;
 use crate::suites::SupportedCipherSuite;
 use crate::ticketer::TimeBase;
 use crate::tls12::{self, ConnectionSecrets, Tls12CipherSuite};
-use crate::{kx, verify};
+use crate::{kx, verify, InvalidMessage};
 
 use super::client_conn::ClientConnectionData;
 use super::hs::ClientContext;
@@ -405,7 +405,7 @@ impl State<ClientConnectionData> for ExpectServerKx {
             .ok_or_else(|| {
                 cx.common
                     .send_fatal_alert(AlertDescription::DecodeError);
-                Error::CorruptMessagePayload(ContentType::Handshake)
+                Error::CorruptMessage(InvalidMessage::MissingKeyExchange)
             })?;
 
         // Save the signature and signed parameters for later verification.
