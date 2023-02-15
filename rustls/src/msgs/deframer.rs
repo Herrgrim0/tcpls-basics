@@ -2,6 +2,7 @@ use std::io;
 use std::ops::Range;
 
 use super::base::Payload;
+use super::codec::Codec;
 use super::enums::ContentType;
 use super::message::PlainMessage;
 use crate::error::{Error, PeerMisbehaved};
@@ -398,11 +399,11 @@ fn payload_size(buf: &[u8]) -> Result<Option<usize>, Error> {
     }
 
     let (header, _) = buf.split_at(HEADER_SIZE);
-    match codec::u24::decode(&header[1..]) {
-        Some(len) if len.0 > MAX_HANDSHAKE_SIZE => Err(Error::CorruptMessage(
+    match codec::u24::read_bytes(&header[1..]) {
+        Ok(len) if len.0 > MAX_HANDSHAKE_SIZE => Err(Error::CorruptMessage(
             InvalidMessage::HandshakePayloadTooLarge,
         )),
-        Some(len) => Ok(Some(HEADER_SIZE + usize::from(len))),
+        Ok(len) => Ok(Some(HEADER_SIZE + usize::from(len))),
         _ => Ok(None),
     }
 }

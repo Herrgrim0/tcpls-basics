@@ -592,7 +592,7 @@ fn quit_err(why: &str) -> ! {
 }
 
 fn handle_err(err: rustls::Error) -> ! {
-    use rustls::{AlertDescription, ContentType};
+    use rustls::AlertDescription;
     use rustls::{Error, InvalidMessage, PeerMisbehaved};
     use std::{thread, time};
 
@@ -611,29 +611,30 @@ fn handle_err(err: rustls::Error) -> ! {
         Error::AlertReceived(AlertDescription::InternalError) => {
             quit(":PEER_ALERT_INTERNAL_ERROR:")
         }
-        Error::CorruptMessage(InvalidMessage::MissingPayload(ContentType::Alert)) => {
-            quit(":BAD_ALERT:")
-        }
-        Error::CorruptMessage(InvalidMessage::MissingPayload(ContentType::ChangeCipherSpec)) => {
-            quit(":BAD_CHANGE_CIPHER_SPEC:")
-        }
-        Error::CorruptMessage(InvalidMessage::MissingPayload(ContentType::Handshake)) => {
-            quit(":BAD_HANDSHAKE_MSG:")
-        }
-        Error::CorruptMessage(InvalidMessage::InvalidKeyUpdate(KeyUpdateRequest::Unknown(42))) => {
-            quit(":BAD_HANDSHAKE_MSG:")
-        }
+        Error::CorruptMessage(
+            InvalidMessage::MissingData("AlertDescription")
+            | InvalidMessage::TrailingData("AlertMessagePayload"),
+        ) => quit(":BAD_ALERT:"),
+        Error::CorruptMessage(
+            InvalidMessage::TrailingData("ChangeCipherSpecPayload")
+            | InvalidMessage::IncorrectFrame("ChangeCipherSpecPayload"),
+        ) => quit(":BAD_CHANGE_CIPHER_SPEC:"),
+        Error::CorruptMessage(
+            InvalidMessage::InvalidKeyUpdate(KeyUpdateRequest::Unknown(42))
+            | InvalidMessage::MissingData(_)
+            | InvalidMessage::TrailingData(_)
+            | InvalidMessage::IncorrectFrame("HelloRetryRequest")
+            | InvalidMessage::NoSignatureSchemes
+            | InvalidMessage::UnsupportedCompression,
+        ) => quit(":BAD_HANDSHAKE_MSG:"),
         Error::CorruptMessage(InvalidMessage::InvalidCertRequest)
         | Error::CorruptMessage(InvalidMessage::InvalidDhParams)
         | Error::CorruptMessage(InvalidMessage::MissingKeyExchange) => quit(":BAD_HANDSHAKE_MSG:"),
         Error::CorruptMessage(InvalidMessage::InvalidContentType)
         | Error::CorruptMessage(InvalidMessage::EmptyDataForDisallowedRecord)
         | Error::CorruptMessage(InvalidMessage::UnknownProtocolVersion)
-        | Error::CorruptMessage(InvalidMessage::MessageTooLarge)
-        | Error::CorruptMessage(InvalidMessage::MissingPayload(ContentType::Unknown(42))) => {
-            quit(":GARBAGE:")
-        }
-        Error::CorruptMessage(InvalidMessage::IncorrectFrame) => quit(":GARBAGE:"),
+        | Error::CorruptMessage(InvalidMessage::MessageTooLarge) => quit(":GARBAGE:"),
+        Error::CorruptMessage(InvalidMessage::IncorrectFrame(_)) => quit(":GARBAGE:"),
         Error::DecryptError => quit(":DECRYPTION_FAILED_OR_BAD_RECORD_MAC:"),
         Error::PeerIncompatible(_) => quit(":INCOMPATIBLE:"),
         Error::PeerMisbehaved(PeerMisbehaved::TooMuchEarlyDataReceived) => {

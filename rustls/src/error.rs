@@ -1,4 +1,8 @@
-use crate::msgs::enums::{AlertDescription, ContentType, HandshakeType, KeyUpdateRequest};
+use crate::msgs::enums::{
+    AlertDescription, CertificateStatusType, ContentType, ECCurveType, HandshakeType,
+    KeyUpdateRequest,
+};
+use crate::msgs::handshake::KeyExchangeAlgorithm;
 use crate::rand;
 
 use std::error::Error as StdError;
@@ -11,7 +15,7 @@ use std::time::SystemTimeError;
 #[derive(Debug, Clone)]
 pub enum InvalidMessage {
     /// The peer sent us a syntactically incorrect TLS message.
-    IncorrectFrame,
+    IncorrectFrame(&'static str),
     /// An advertised message was larger then expected.
     HandshakePayloadTooLarge,
     /// A message was zero-length when its record kind forbids it.
@@ -22,9 +26,6 @@ pub enum InvalidMessage {
     InvalidContentType,
     /// An unknown TLS protocol was encountered during message decoding.
     UnknownProtocolVersion,
-    /// Decoding a message payload for a [ContentType] failed because a different
-    /// type was encountered.
-    MissingPayload(ContentType),
     /// A peer did not advertise its supported key exchange groups.
     MissingKeyExchange,
     /// Context was incorrectly attached to a certificate request during a handshake.
@@ -33,6 +34,30 @@ pub enum InvalidMessage {
     InvalidKeyUpdate(KeyUpdateRequest),
     /// A peer's DH params could not be decoded
     InvalidDhParams,
+    /// Missing data for the named handshake payload value
+    MissingData(&'static str),
+    /// Trailing data found for the named handshake payload value
+    TrailingData(&'static str),
+    /// Message is shorter than the expected length
+    MessageTooShort,
+    /// A peer's server name could not be decoded
+    InvalidServerName,
+    /// A peer sent an non-null compression method
+    UnsupportedCompression,
+    /// A peer sent an unknown elliptic curve type
+    UnsupportedCurve(ECCurveType),
+    /// A peer sent an unsupported key exchange algorithm
+    UnsupportedKeyExchangeAlgorithm(KeyExchangeAlgorithm),
+    /// A peer sent an empty list of signature schemes
+    NoSignatureSchemes,
+    /// A peer sent an invalid certificate status type
+    InvalidCertificateStatusType(CertificateStatusType),
+}
+
+impl From<InvalidMessage> for Error {
+    fn from(value: InvalidMessage) -> Self {
+        Self::CorruptMessage(value)
+    }
 }
 
 /// rustls reports protocol errors using this type.
@@ -384,7 +409,7 @@ mod tests {
                 expect_types: vec![HandshakeType::ClientHello, HandshakeType::Finished],
                 got_type: HandshakeType::ServerHello,
             },
-            Error::CorruptMessage(InvalidMessage::IncorrectFrame),
+            Error::CorruptMessage(InvalidMessage::IncorrectFrame("ChangeCipherSpecPayload")),
             Error::NoCertificatesPresented,
             Error::DecryptError,
             super::PeerIncompatible::Tls12NotOffered.into(),

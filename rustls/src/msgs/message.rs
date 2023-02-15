@@ -36,26 +36,26 @@ impl MessagePayload {
         }
     }
 
-    pub fn new(typ: ContentType, vers: ProtocolVersion, payload: Payload) -> Result<Self, Error> {
+    pub fn new(
+        typ: ContentType,
+        vers: ProtocolVersion,
+        payload: Payload,
+    ) -> Result<Self, InvalidMessage> {
         let mut r = Reader::init(&payload.0);
-        let parsed = match typ {
-            ContentType::ApplicationData => return Ok(Self::ApplicationData(payload)),
-            ContentType::Alert => AlertMessagePayload::read(&mut r)
-                .filter(|_| !r.any_left())
-                .map(MessagePayload::Alert),
-            ContentType::Handshake => HandshakeMessagePayload::read_version(&mut r, vers)
-                .filter(|_| !r.any_left())
-                .map(|parsed| Self::Handshake {
+        match typ {
+            ContentType::ApplicationData => Ok(Self::ApplicationData(payload)),
+            ContentType::Alert => AlertMessagePayload::read(&mut r).map(MessagePayload::Alert),
+            ContentType::Handshake => {
+                HandshakeMessagePayload::read_version(&mut r, vers).map(|parsed| Self::Handshake {
                     parsed,
                     encoded: payload,
-                }),
-            ContentType::ChangeCipherSpec => ChangeCipherSpecPayload::read(&mut r)
-                .filter(|_| !r.any_left())
-                .map(MessagePayload::ChangeCipherSpec),
-            _ => None,
-        };
-
-        parsed.ok_or(Error::CorruptMessage(InvalidMessage::MissingPayload(typ)))
+                })
+            }
+            ContentType::ChangeCipherSpec => {
+                ChangeCipherSpecPayload::read(&mut r).map(MessagePayload::ChangeCipherSpec)
+            }
+            _ => Err(InvalidMessage::InvalidContentType),
+        }
     }
 
     pub fn content_type(&self) -> ContentType {
@@ -84,9 +84,9 @@ impl OpaqueMessage {
     /// `MessageError` allows callers to distinguish between valid prefixes (might
     /// become valid if we read more data) and invalid data.
     pub fn read(r: &mut Reader) -> Result<Self, MessageError> {
-        let typ = ContentType::read(r).ok_or(MessageError::TooShortForHeader)?;
-        let version = ProtocolVersion::read(r).ok_or(MessageError::TooShortForHeader)?;
-        let len = u16::read(r).ok_or(MessageError::TooShortForHeader)?;
+        let typ = ContentType::read(r).map_err(|_| MessageError::TooShortForHeader)?;
+        let version = ProtocolVersion::read(r).map_err(|_| MessageError::TooShortForHeader)?;
+        let len = u16::read(r).map_err(|_| MessageError::TooShortForHeader)?;
 
         // Reject undersize messages
         //  implemented per section 5.1 of RFC8446 (TLSv1.3)
@@ -115,7 +115,7 @@ impl OpaqueMessage {
 
         let mut sub = r
             .sub(len as usize)
-            .ok_or(MessageError::TooShortForLength)?;
+            .map_err(|_| MessageError::TooShortForLength)?;
         let payload = Payload::read(&mut sub);
 
         Ok(Self {
