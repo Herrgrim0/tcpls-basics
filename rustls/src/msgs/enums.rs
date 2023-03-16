@@ -224,7 +224,10 @@ enum_builder! {
         NextProtocolNegotiation => 0x3374,
         ChannelId => 0x754f,
         RenegotiationInfo => 0xff01,
-        TransportParametersDraft => 0xffa5
+        TransportParametersDraft => 0xffa5,
+        TCPLS => 0x003a, // extension is 58 in decimal (42 already taken)
+        TCPLS_JOIN => 0x003b,
+        TCPLS_TOKEN => 0x003c
     }
 }
 
