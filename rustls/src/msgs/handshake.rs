@@ -569,6 +569,7 @@ pub enum ClientExtension {
     TransportParameters(Vec<u8>),
     TransportParametersDraft(Vec<u8>),
     EarlyData,
+    TCPLS,
     Unknown(UnknownExtension),
 }
 
@@ -592,6 +593,7 @@ impl ClientExtension {
             Self::TransportParameters(_) => ExtensionType::TransportParameters,
             Self::TransportParametersDraft(_) => ExtensionType::TransportParametersDraft,
             Self::EarlyData => ExtensionType::EarlyData,
+            Self::TCPLS => ExtensionType::TCPLS,
             Self::Unknown(ref r) => r.typ,
         }
     }
@@ -610,6 +612,7 @@ impl Codec for ClientExtension {
             Self::SessionTicket(ClientSessionTicket::Request)
             | Self::ExtendedMasterSecretRequest
             | Self::SignedCertificateTimestampRequest
+            | Self::TCPLS
             | Self::EarlyData => {}
             Self::SessionTicket(ClientSessionTicket::Offer(ref r)) => r.encode(&mut sub),
             Self::Protocols(ref r) => r.encode(&mut sub),
@@ -676,6 +679,7 @@ impl Codec for ClientExtension {
             ExtensionType::TransportParametersDraft => {
                 Self::TransportParametersDraft(sub.rest().to_vec())
             }
+            ExtensionType::TCPLS if !sub.any_left() => Self::TCPLS,
             ExtensionType::EarlyData if !sub.any_left() => Self::EarlyData,
             _ => Self::Unknown(UnknownExtension::read(typ, &mut sub)),
         };
@@ -737,6 +741,7 @@ pub enum ServerExtension {
     TransportParameters(Vec<u8>),
     TransportParametersDraft(Vec<u8>),
     EarlyData,
+    TCPLS,
     Unknown(UnknownExtension),
 }
 
@@ -758,6 +763,7 @@ impl ServerExtension {
             Self::TransportParametersDraft(_) => ExtensionType::TransportParametersDraft,
             Self::EarlyData => ExtensionType::EarlyData,
             Self::Unknown(ref r) => r.typ,
+            Self::TCPLS => ExtensionType::TCPLS,
         }
     }
 }
@@ -773,7 +779,8 @@ impl Codec for ServerExtension {
             | Self::SessionTicketAck
             | Self::ExtendedMasterSecretAck
             | Self::CertificateStatusAck
-            | Self::EarlyData => {}
+            | Self::EarlyData
+            | Self::TCPLS => {}
             Self::RenegotiationInfo(ref r) => r.encode(&mut sub),
             Self::Protocols(ref r) => r.encode(&mut sub),
             Self::KeyShare(ref r) => r.encode(&mut sub),
@@ -820,6 +827,7 @@ impl Codec for ServerExtension {
             ExtensionType::TransportParametersDraft => {
                 Self::TransportParametersDraft(sub.rest().to_vec())
             }
+            ExtensionType::TCPLS => Self::TCPLS,
             ExtensionType::EarlyData => Self::EarlyData,
             _ => Self::Unknown(UnknownExtension::read(typ, &mut sub)),
         };
