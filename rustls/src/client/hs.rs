@@ -227,6 +227,7 @@ fn emit_client_hello_for_retry(
     assert!(!supported_versions.is_empty());
 
     let mut exts = vec![
+        ClientExtension::TCPLS,
         ClientExtension::SupportedVersions(supported_versions),
         ClientExtension::ECPointFormats(ECPointFormatList::supported()),
         ClientExtension::NamedGroups(
