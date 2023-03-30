@@ -12,7 +12,7 @@ use crate::msgs::base::Payload;
 use crate::msgs::enums::{AlertDescription, Compression, ContentType};
 use crate::msgs::enums::{ECPointFormat, PSKKeyExchangeMode};
 use crate::msgs::enums::{ExtensionType, HandshakeType};
-use crate::msgs::handshake::{CertificateStatusRequest, ClientSessionTicket, SCTList};
+use crate::msgs::handshake::{CertificateStatusRequest, ClientSessionTicket, SCTList, TcplsExtension};
 use crate::msgs::handshake::{ClientExtension, HasServerExtensions};
 use crate::msgs::handshake::{ClientHelloPayload, HandshakeMessagePayload, HandshakePayload};
 use crate::msgs::handshake::{ConvertProtocolNameList, ProtocolNameList};
@@ -227,7 +227,7 @@ fn emit_client_hello_for_retry(
     assert!(!supported_versions.is_empty());
 
     let mut exts = vec![
-        ClientExtension::TCPLS,
+        ClientExtension::Tcpls(TcplsExtension {typ: ExtensionType::TCPLS, payload: Payload(vec![0]) }),
         ClientExtension::SupportedVersions(supported_versions),
         ClientExtension::ECPointFormats(ECPointFormatList::supported()),
         ClientExtension::NamedGroups(
