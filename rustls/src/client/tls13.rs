@@ -51,7 +51,6 @@ static ALLOWED_PLAINTEXT_EXTS: &[ExtensionType] = &[
     ExtensionType::KeyShare,
     ExtensionType::PreSharedKey,
     ExtensionType::SupportedVersions,
-    ExtensionType::TCPLS,
 ];
 
 // Only the intersection of things we offer, and those disallowed
