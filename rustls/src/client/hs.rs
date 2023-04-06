@@ -227,7 +227,6 @@ fn emit_client_hello_for_retry(
     assert!(!supported_versions.is_empty());
 
     let mut exts = vec![
-        ClientExtension::Tcpls(TcplsExtension {typ: ExtensionType::TCPLS, payload: Payload(vec![0]) }),
         ClientExtension::SupportedVersions(supported_versions),
         ClientExtension::ECPointFormats(ECPointFormatList::supported()),
         ClientExtension::NamedGroups(
@@ -325,6 +324,14 @@ fn emit_client_hello_for_retry(
     } else {
         None
     };
+
+    if config.enable_tcpls[0] {
+        // Put TCPLS Extension in EncryptedExtension
+        exts.push(ClientExtension::Tcpls(
+                TcplsExtension {typ: ExtensionType::TCPLS, payload: Payload(vec![0]) })
+            );
+    }
+    
 
     // Note what extensions we sent.
     hello.sent_extensions = exts
