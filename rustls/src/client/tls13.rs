@@ -15,7 +15,7 @@ use crate::msgs::ccs::ChangeCipherSpecPayload;
 use crate::msgs::enums::AlertDescription;
 use crate::msgs::enums::KeyUpdateRequest;
 use crate::msgs::enums::{ContentType, ExtensionType, HandshakeType};
-use crate::msgs::handshake::{ClientExtension, ServerExtension};
+use crate::msgs::handshake::ClientExtension;
 use crate::msgs::handshake::DigitallySignedStruct;
 use crate::msgs::handshake::EncryptedExtensions;
 use crate::msgs::handshake::NewSessionTicketPayloadTLS13;

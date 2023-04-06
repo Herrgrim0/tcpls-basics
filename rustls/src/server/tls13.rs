@@ -343,7 +343,6 @@ mod client_hello {
                 emit_fake_ccs(cx.common);
             }
 
-            /*dbg!("retrieving TCPLS extension");
             let _tcpls_ext = client_hello
                 .get_tcpls_extension()
                 .ok_or_else(|| {
@@ -351,7 +350,7 @@ mod client_hello {
                         cx.common,
                         PeerIncompatible::ServerSentHelloRetryRequestWithUnknownExtension,
                     )
-                })?;*/
+                })?;
 
             let (mut ocsp_response, mut sct_list) =
                 (server_key.get_ocsp(), server_key.get_sct_list());

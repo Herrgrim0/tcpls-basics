@@ -201,7 +201,6 @@ pub struct TcplsExtension {
 
 impl TcplsExtension {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        //self.typ.encode(bytes);
         self.payload.encode(bytes);
     }
 
@@ -701,8 +700,8 @@ impl Codec for ClientExtension {
             ExtensionType::TransportParametersDraft => {
                 Self::TransportParametersDraft(sub.rest().to_vec())
             }
-            ExtensionType::TCPLS if !sub.any_left() => Self::Tcpls(TcplsExtension::read(typ, &mut sub)),
             ExtensionType::EarlyData if !sub.any_left() => Self::EarlyData,
+            ExtensionType::TCPLS => Self::Tcpls(TcplsExtension::read(typ, &mut sub)),
             _ => Self::Unknown(UnknownExtension::read(typ, &mut sub)),
         };
 
@@ -915,8 +914,6 @@ impl Codec for ClientHelloPayload {
             ret.extensions = codec::read_vec_u16::<ClientExtension>(r)?;
         }
 
-        dbg!(&ret.extensions);
-
         if r.any_left() || ret.extensions.is_empty() {
             None
         } else {
@@ -1060,7 +1057,6 @@ impl ClientHelloPayload {
 
     pub fn get_tcpls_extension(&self) -> Option<&TcplsExtension> {
         let ext = self.find_extension(ExtensionType::TCPLS)?;
-        dbg!(ext);
         match *ext {
             ClientExtension::Tcpls(ref tcpls ) => Some(tcpls),
             _ => None,

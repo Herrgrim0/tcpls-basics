@@ -195,6 +195,13 @@ pub struct ClientConfig {
     ///
     /// The default is false.
     pub enable_early_data: bool,
+
+    /// Keep track if both client and server are
+    /// able to communicate via TCPLS
+    /// vector with 2 boolean one for the client and one for the server.
+    /// 
+    /// The default is false.
+    pub enable_tcpls: Vec<bool>,
 }
 
 impl fmt::Debug for ClientConfig {

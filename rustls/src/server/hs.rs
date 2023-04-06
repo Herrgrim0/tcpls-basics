@@ -188,8 +188,11 @@ impl ExtensionProcessing {
         }
 
         if hello.find_extension(ExtensionType::TCPLS).is_some(){
-            dbg!("putting Tcpls Extension");
-            self.exts.push(ServerExtension::Tcpls( TcplsExtension{typ: ExtensionType::TCPLS, payload: Payload(vec![0])} ));
+            self.exts.push(
+                ServerExtension::Tcpls( 
+                    TcplsExtension{typ: ExtensionType::TCPLS, payload: Payload(vec![0])} 
+                )
+            );
         }
 
         self.exts.extend(extra_exts);
