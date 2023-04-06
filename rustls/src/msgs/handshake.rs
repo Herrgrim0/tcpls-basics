@@ -201,6 +201,7 @@ pub struct TcplsExtension {
 
 impl TcplsExtension {
     fn encode(&self, bytes: &mut Vec<u8>) {
+        //self.typ.encode(bytes);
         self.payload.encode(bytes);
     }
 
@@ -613,7 +614,7 @@ impl ClientExtension {
             Self::TransportParameters(_) => ExtensionType::TransportParameters,
             Self::TransportParametersDraft(_) => ExtensionType::TransportParametersDraft,
             Self::EarlyData => ExtensionType::EarlyData,
-            Self::Tcpls(ref r) => r.typ,
+            Self::Tcpls(_) => ExtensionType::TCPLS,
             Self::Unknown(ref r) => r.typ,
         }
     }
@@ -783,7 +784,7 @@ impl ServerExtension {
             Self::TransportParameters(_) => ExtensionType::TransportParameters,
             Self::TransportParametersDraft(_) => ExtensionType::TransportParametersDraft,
             Self::EarlyData => ExtensionType::EarlyData,
-            Self::Tcpls(ref r) => r.typ,
+            Self::Tcpls(_) => ExtensionType::TCPLS,
             Self::Unknown(ref r) => r.typ,
         }
     }
@@ -913,6 +914,8 @@ impl Codec for ClientHelloPayload {
         if r.any_left() {
             ret.extensions = codec::read_vec_u16::<ClientExtension>(r)?;
         }
+
+        dbg!(&ret.extensions);
 
         if r.any_left() || ret.extensions.is_empty() {
             None
@@ -1051,6 +1054,15 @@ impl ClientHelloPayload {
         let ext = self.find_extension(ExtensionType::PSKKeyExchangeModes)?;
         match *ext {
             ClientExtension::PresharedKeyModes(ref psk_modes) => Some(psk_modes),
+            _ => None,
+        }
+    }
+
+    pub fn get_tcpls_extension(&self) -> Option<&TcplsExtension> {
+        let ext = self.find_extension(ExtensionType::TCPLS)?;
+        dbg!(ext);
+        match *ext {
+            ClientExtension::Tcpls(ref tcpls ) => Some(tcpls),
             _ => None,
         }
     }
