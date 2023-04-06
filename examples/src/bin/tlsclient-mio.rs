@@ -221,6 +221,7 @@ Options:
     --max-frag-size M   Limit outgoing messages to M bytes.
     --version, -v       Show tool version.
     --help, -h          Show this screen.
+    --tcpls             Enable a TCPLS connection.
 ";
 
 #[derive(Debug, Deserialize)]
@@ -239,6 +240,7 @@ struct Args {
     flag_auth_key: Option<String>,
     flag_auth_certs: Option<String>,
     arg_hostname: String,
+    flag_tcpls: bool,
 }
 
 // TODO: um, well, it turns out that openssl s_client/s_server
@@ -434,6 +436,10 @@ fn make_config(args: &Args) -> Arc<rustls::ClientConfig> {
 
     if args.flag_no_sni {
         config.enable_sni = false;
+    }
+
+    if args.flag_tcpls {
+        config.enable_tcpls[0] = true;
     }
 
     config.alpn_protocols = args
