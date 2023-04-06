@@ -6,11 +6,12 @@ use crate::error::{Error, PeerIncompatible, PeerMisbehaved};
 use crate::hash_hs::{HandshakeHash, HandshakeHashBuffer};
 #[cfg(feature = "logging")]
 use crate::log::{debug, trace};
+use crate::msgs::base::Payload;
 use crate::msgs::enums::HandshakeType;
 use crate::msgs::enums::{AlertDescription, Compression, ExtensionType};
 #[cfg(feature = "tls12")]
 use crate::msgs::handshake::SessionID;
-use crate::msgs::handshake::{ClientHelloPayload, Random, ServerExtension};
+use crate::msgs::handshake::{ClientHelloPayload, Random, ServerExtension, TcplsExtension};
 use crate::msgs::handshake::{ConvertProtocolNameList, ConvertServerNameList, HandshakePayload};
 use crate::msgs::message::{Message, MessagePayload};
 use crate::msgs::persist;
@@ -184,6 +185,11 @@ impl ExtensionProcessing {
         } else {
             // Throw away any SCT list so we don't send it later.
             sct_list.take();
+        }
+
+        if hello.find_extension(ExtensionType::TCPLS).is_some(){
+            dbg!("putting Tcpls Extension");
+            self.exts.push(ServerExtension::Tcpls( TcplsExtension{typ: ExtensionType::TCPLS, payload: Payload(vec![0])} ));
         }
 
         self.exts.extend(extra_exts);
