@@ -41,9 +41,9 @@ mod client_hello {
     use crate::kx;
     use crate::msgs::base::{Payload, PayloadU8};
     use crate::msgs::ccs::ChangeCipherSpecPayload;
-    use crate::msgs::enums::{NamedGroup, ExtensionType};
+    use crate::msgs::enums::NamedGroup;
     use crate::msgs::enums::{Compression, PSKKeyExchangeMode};
-    use crate::msgs::handshake::{CertReqExtension, TcplsExtension};
+    use crate::msgs::handshake::CertReqExtension;
     use crate::msgs::handshake::CertificateEntry;
     use crate::msgs::handshake::CertificateExtension;
     use crate::msgs::handshake::CertificatePayloadTLS13;
@@ -343,6 +343,16 @@ mod client_hello {
                 emit_fake_ccs(cx.common);
             }
 
+            /*dbg!("retrieving TCPLS extension");
+            let _tcpls_ext = client_hello
+                .get_tcpls_extension()
+                .ok_or_else(|| {
+                    hs::incompatible(
+                        cx.common,
+                        PeerIncompatible::ServerSentHelloRetryRequestWithUnknownExtension,
+                    )
+                })?;*/
+
             let (mut ocsp_response, mut sct_list) =
                 (server_key.get_ocsp(), server_key.get_sct_list());
             let doing_early_data = emit_encrypted_extensions(
@@ -472,8 +482,6 @@ mod client_hello {
         if let Some(psk_idx) = chosen_psk_idx {
             extensions.push(ServerExtension::PresharedKey(psk_idx as u16));
         }
-
-        extensions.push(ServerExtension::Tcpls(TcplsExtension {typ: ExtensionType::TCPLS, payload: Payload(vec![0])}));
 
         let sh = Message {
             version: ProtocolVersion::TLSv1_2,
