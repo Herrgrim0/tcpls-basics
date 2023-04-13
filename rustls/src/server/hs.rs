@@ -187,7 +187,9 @@ impl ExtensionProcessing {
             sct_list.take();
         }
 
-        if hello.find_extension(ExtensionType::TCPLS).is_some(){
+        // if client and server want and can communicate via tcpls
+        if hello.find_extension(ExtensionType::TCPLS).is_some() && config.tcpls_enabled{
+            cx.common.set_other_tcpls();
             self.exts.push(
                 ServerExtension::Tcpls( 
                     TcplsExtension{typ: ExtensionType::TCPLS, payload: Payload(vec![0])} 
