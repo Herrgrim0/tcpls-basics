@@ -15,7 +15,7 @@ use crate::msgs::ccs::ChangeCipherSpecPayload;
 use crate::msgs::enums::AlertDescription;
 use crate::msgs::enums::KeyUpdateRequest;
 use crate::msgs::enums::{ContentType, ExtensionType, HandshakeType};
-use crate::msgs::handshake::ClientExtension;
+use crate::msgs::handshake::{ClientExtension, ServerExtension};
 use crate::msgs::handshake::DigitallySignedStruct;
 use crate::msgs::handshake::EncryptedExtensions;
 use crate::msgs::handshake::NewSessionTicketPayloadTLS13;
@@ -361,12 +361,12 @@ impl State<ClientConnectionData> for ExpectEncryptedExtensions {
         validate_encrypted_extensions(cx.common, &self.hello, exts)?;
         hs::process_alpn_protocol(cx.common, &self.config, exts.get_alpn_protocol())?;
 
-        /*for ext in exts {
+        for ext in exts {
             match *ext {
-                ServerExtension::Tcpls(ref _tcpls ) => self.config.enable_tcpls.push(true),
+                ServerExtension::Tcpls(ref _tcpls ) => cx.common.set_other_tcpls(),
                 _ => continue,
             }
-        };*/
+        };
         
 
         #[cfg(feature = "quic")]
