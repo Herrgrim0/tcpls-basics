@@ -325,7 +325,7 @@ fn emit_client_hello_for_retry(
         None
     };
 
-    if config.enable_tcpls[0] {
+    if config.tcpls_enabled {
         // Put TCPLS Extension in EncryptedExtension
         exts.push(ClientExtension::Tcpls(
                 TcplsExtension {typ: ExtensionType::TCPLS, payload: Payload(vec![0]) })
