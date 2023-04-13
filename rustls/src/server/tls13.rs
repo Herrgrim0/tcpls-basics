@@ -343,15 +343,6 @@ mod client_hello {
                 emit_fake_ccs(cx.common);
             }
 
-            let _tcpls_ext = client_hello
-                .get_tcpls_extension()
-                .ok_or_else(|| {
-                    hs::incompatible(
-                        cx.common,
-                        PeerIncompatible::ServerSentHelloRetryRequestWithUnknownExtension,
-                    )
-                })?;
-
             let (mut ocsp_response, mut sct_list) =
                 (server_key.get_ocsp(), server_key.get_sct_list());
             let doing_early_data = emit_encrypted_extensions(
