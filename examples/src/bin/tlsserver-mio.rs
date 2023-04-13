@@ -103,6 +103,18 @@ impl TlsServer {
             }
         }
     }
+
+    fn is_tcpls_enabled(&self, event: &mio::event::Event) -> bool {
+        let token = event.token();
+        if self.connections.contains_key(&token)
+           && self.connections
+                .get(&token)
+                .unwrap()
+                .tls_conn.is_ready_for_tcpls(&self.tls_config) {
+                    return true;
+                }
+            false
+    }
 }
 
 /// This is a connection which has been accepted by the server,
@@ -442,6 +454,7 @@ Options:
     --verbose           Emit log output.
     --version, -v       Show tool version.
     --help, -h          Show this screen.
+    --tcpls             Enable a TCPLS connection.
 ";
 
 #[derive(Debug, Deserialize)]
@@ -461,6 +474,7 @@ struct Args {
     flag_resumption: bool,
     flag_tickets: bool,
     arg_fport: Option<u16>,
+    flag_tcpls: bool,
 }
 
 fn find_suite(name: &str) -> Option<rustls::SupportedCipherSuite> {
@@ -610,6 +624,10 @@ fn make_config(args: &Args) -> Arc<rustls::ServerConfig> {
         config.ticketer = rustls::Ticketer::new().unwrap();
     }
 
+    if args.flag_tcpls {
+        config.tcpls_enabled = true;
+    }
+
     config.alpn_protocols = args
         .flag_proto
         .iter()
@@ -667,6 +685,9 @@ fn main() {
                         .expect("error accepting socket");
                 }
                 _ => tlsserv.conn_event(poll.registry(), event),
+            }
+            if tlsserv.is_tcpls_enabled(event) {
+                println!("\n\n\n CONNECTION TCPLS READY! \n\n\n", );
             }
         }
     }

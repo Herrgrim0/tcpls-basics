@@ -2,6 +2,7 @@ use std::process;
 use std::sync::Arc;
 
 use mio::net::TcpStream;
+use rustls::ClientConfig;
 
 use std::fs;
 use std::io;
@@ -25,6 +26,7 @@ struct TlsClient {
     closing: bool,
     clean_closure: bool,
     tls_conn: rustls::ClientConnection,
+    tls_cfg: Arc<ClientConfig>,
 }
 
 impl TlsClient {
@@ -37,6 +39,7 @@ impl TlsClient {
             socket: sock,
             closing: false,
             clean_closure: false,
+            tls_cfg: cfg.clone(),
             tls_conn: rustls::ClientConnection::new(cfg, server_name).unwrap(),
         }
     }
@@ -439,7 +442,7 @@ fn make_config(args: &Args) -> Arc<rustls::ClientConfig> {
     }
 
     if args.flag_tcpls {
-        config.enable_tcpls[0] = true;
+        config.tcpls_enabled = true;
     }
 
     config.alpn_protocols = args
@@ -503,13 +506,15 @@ fn main() {
     let mut poll = mio::Poll::new().unwrap();
     let mut events = mio::Events::with_capacity(32);
     tlsclient.register(poll.registry());
-
     loop {
         poll.poll(&mut events, None).unwrap();
 
         for ev in events.iter() {
             tlsclient.ready(ev);
             tlsclient.reregister(poll.registry());
+        }
+        if tlsclient.tls_conn.is_ready_for_tcpls(&tlsclient.tls_cfg) {
+        println!("\n\n\n CONNECTION TCPLS READY! \n\n\n", );
         }
     }
 }
