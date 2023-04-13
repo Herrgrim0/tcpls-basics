@@ -187,7 +187,7 @@ impl ConfigBuilder<ClientConfig, WantsClientCert> {
             #[cfg(feature = "secret_extraction")]
             enable_secret_extraction: false,
             enable_early_data: false,
-            enable_tcpls: vec![false, false],
+            tcpls_enabled: false,
         }
     }
 }

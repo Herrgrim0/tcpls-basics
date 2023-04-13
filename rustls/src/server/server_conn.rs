@@ -297,6 +297,12 @@ pub struct ServerConfig {
     /// If this is 0, no tickets are sent and clients will not be able to
     /// do any resumption.
     pub send_tls13_tickets: usize,
+
+    /// Whether the server wants or
+    /// can communicate via TCPLS
+    /// 
+    /// The default is false.
+    pub tcpls_enabled: bool,
 }
 
 impl fmt::Debug for ServerConfig {
@@ -393,6 +399,12 @@ impl ServerConnection {
                 common,
             ),
         })
+    }
+
+    /// if both client and server are tcpls ready
+    /// return true
+    pub fn is_ready_for_tcpls(&self, config: &ServerConfig) -> bool {
+        self.inner.common_state.other_tcpls_enabled && config.tcpls_enabled
     }
 
     /// Retrieves the SNI hostname, if any, used to select the certificate and

@@ -196,12 +196,11 @@ pub struct ClientConfig {
     /// The default is false.
     pub enable_early_data: bool,
 
-    /// Keep track if both client and server are
-    /// able to communicate via TCPLS
-    /// vector with 2 boolean one for the client and one for the server.
+    /// Whether the client wants or
+    /// can communicate via TCPLS
     /// 
     /// The default is false.
-    pub enable_tcpls: Vec<bool>,
+    pub tcpls_enabled: bool,
 }
 
 impl fmt::Debug for ClientConfig {
@@ -507,6 +506,12 @@ impl ClientConnection {
         let inner = ConnectionCommon::new(state, data, common_state);
 
         Ok(Self { inner })
+    }
+
+    /// if both client and server are tcpls ready
+    /// return true
+    pub fn is_ready_for_tcpls(&self, config: &ClientConfig) -> bool {
+        self.inner.common_state.other_tcpls_enabled && config.tcpls_enabled
     }
 
     /// Returns an `io::Write` implementer you can write bytes to
