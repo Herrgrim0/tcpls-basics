@@ -320,7 +320,7 @@ fn validate_encrypted_extensions(
         return Err(PeerMisbehaved::DuplicateEncryptedExtensions.into());
     }
 
-    if hello.server_sent_unsolicited_extensions(exts, &[]) {
+    if hello.server_sent_unsolicited_extensions(exts, &[ExtensionType::TCPLS_TOKEN]) {
         common.send_fatal_alert(AlertDescription::UnsupportedExtension);
         return Err(PeerMisbehaved::UnsolicitedEncryptedExtension.into());
     }
@@ -364,6 +364,7 @@ impl State<ClientConnectionData> for ExpectEncryptedExtensions {
         for ext in exts {
             match *ext {
                 ServerExtension::Tcpls(ref _tcpls ) => cx.common.set_other_tcpls(),
+                ServerExtension::TcplsToken(ref _tcpls) => {dbg!("Tcpls Token found");continue;},
                 _ => continue,
             }
         };
