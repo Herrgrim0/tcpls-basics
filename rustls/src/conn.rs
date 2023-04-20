@@ -26,7 +26,7 @@ use crate::vecbuf::ChunkVecBuffer;
 use std::collections::VecDeque;
 
 use std::fmt::Debug;
-use std::io;
+use std::{io, vec};
 use std::mem;
 use std::ops::{Deref, DerefMut};
 
@@ -824,6 +824,7 @@ pub struct CommonState {
     pub(crate) sendable_tls: ChunkVecBuffer,
     queued_key_update_message: Option<Vec<u8>>,
     pub(crate) other_tcpls_enabled: bool,
+    pub(crate) _tcpls_token: Vec<u8>,
 
     #[allow(dead_code)] // only read for QUIC
     /// Protocol whose key schedule should be used. Unused for TLS < 1.3.
@@ -857,6 +858,7 @@ impl CommonState {
             sendable_tls: ChunkVecBuffer::new(Some(DEFAULT_BUFFER_LIMIT)),
             queued_key_update_message: None,
             other_tcpls_enabled: false,
+            _tcpls_token: vec![0],
 
             protocol: Protocol::Tcp,
             #[cfg(feature = "quic")]
@@ -877,6 +879,11 @@ impl CommonState {
     /// to enable TCPLS communication.
     pub fn set_other_tcpls(&mut self) {
         self.other_tcpls_enabled = true;
+    }
+
+    /// Set the tcpls token for the session
+    pub fn set_tcpls_token(&mut self, tcpls_token : Vec<u8>) {
+        self._tcpls_token = tcpls_token;
     }
 
     /// Returns true if the connection is currently performing the TLS handshake.
