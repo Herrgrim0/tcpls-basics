@@ -763,6 +763,7 @@ pub enum ServerExtension {
     TransportParametersDraft(Vec<u8>),
     EarlyData,
     Tcpls(TcplsExtension),
+    TcplsToken(TcplsExtension),
     Unknown(UnknownExtension),
 }
 
@@ -784,6 +785,7 @@ impl ServerExtension {
             Self::TransportParametersDraft(_) => ExtensionType::TransportParametersDraft,
             Self::EarlyData => ExtensionType::EarlyData,
             Self::Tcpls(_) => ExtensionType::TCPLS,
+            Self::TcplsToken(_) => ExtensionType::TCPLS_TOKEN,
             Self::Unknown(ref r) => r.typ,
         }
     }
@@ -811,6 +813,7 @@ impl Codec for ServerExtension {
                 sub.extend_from_slice(r);
             }
             Self::Tcpls(ref r) => r.encode(&mut sub),
+            Self::TcplsToken(ref r) => {dbg!("encode Token");r.encode(&mut sub)},
             Self::Unknown(ref r) => r.encode(&mut sub),
         }
 
@@ -849,6 +852,7 @@ impl Codec for ServerExtension {
                 Self::TransportParametersDraft(sub.rest().to_vec())
             }
             ExtensionType::TCPLS => Self::Tcpls(TcplsExtension::read(typ, &mut sub)),
+            ExtensionType::TCPLS_TOKEN => Self::TcplsToken(TcplsExtension::read(typ, &mut sub)),
             ExtensionType::EarlyData => Self::EarlyData,
             _ => Self::Unknown(UnknownExtension::read(typ, &mut sub)),
         };
