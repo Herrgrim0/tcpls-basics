@@ -195,6 +195,11 @@ impl ExtensionProcessing {
                     TcplsExtension{typ: ExtensionType::TCPLS, payload: Payload(vec![0])} 
                 )
             );
+            self.exts.push(
+                ServerExtension::TcplsToken(
+                    TcplsExtension{typ: ExtensionType::TCPLS_TOKEN, payload: Payload(vec![0])}
+                )
+            )
         }
 
         self.exts.extend(extra_exts);
