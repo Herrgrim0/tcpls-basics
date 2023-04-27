@@ -344,6 +344,8 @@ mod kx;
 mod suites;
 mod ticketer;
 mod versions;
+/// module with TCPLS impl
+pub mod tcpls;
 
 /// Internal classes which may be useful outside the library.
 /// The contents of this section DO NOT form part of the stable interface.
