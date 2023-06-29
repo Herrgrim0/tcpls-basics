@@ -211,6 +211,7 @@ impl fmt::Debug for ClientConfig {
             .field("enable_tickets", &self.enable_tickets)
             .field("enable_sni", &self.enable_sni)
             .field("enable_early_data", &self.enable_early_data)
+            .field("tcpls_enabled", &self.tcpls_enabled)
             .finish_non_exhaustive()
     }
 }
