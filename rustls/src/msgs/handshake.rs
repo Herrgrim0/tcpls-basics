@@ -205,7 +205,11 @@ impl TcplsExtension {
     }
 
     fn read(typ: ExtensionType, r: &mut Reader) -> Self {
-        let payload = Payload::read(r);
+        let payload: Payload;
+        match typ {
+            ExtensionType::TCPLS => {payload = Payload::read(r)},
+            _ => {payload = Payload::read(r)},
+        };
         Self { typ, payload }
     }
 }
@@ -813,7 +817,7 @@ impl Codec for ServerExtension {
                 sub.extend_from_slice(r);
             }
             Self::Tcpls(ref r) => r.encode(&mut sub),
-            Self::TcplsToken(ref r) => {dbg!("encode Token");r.encode(&mut sub)},
+            Self::TcplsToken(ref r) => {r.encode(&mut sub)},
             Self::Unknown(ref r) => r.encode(&mut sub),
         }
 
