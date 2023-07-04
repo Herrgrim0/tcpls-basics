@@ -209,6 +209,11 @@ impl RecordLayer {
             .encrypt(plain, seq)
             .unwrap()
     }
+
+    /// return seq number for TCPLS Ack frame
+    pub fn get_seq_nbr(&self) -> u64 {
+        self.read_seq
+    }
 }
 
 /// Result of decryption.
