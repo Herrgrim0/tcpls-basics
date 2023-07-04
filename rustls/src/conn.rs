@@ -19,6 +19,7 @@ use crate::record_layer;
 use crate::suites::SupportedCipherSuite;
 #[cfg(feature = "secret_extraction")]
 use crate::suites::{ExtractedSecrets, PartiallyExtractedSecrets};
+use crate::tcpls::{self, Tcpls};
 #[cfg(feature = "tls12")]
 use crate::tls12::ConnectionSecrets;
 use crate::vecbuf::ChunkVecBuffer;
@@ -833,6 +834,7 @@ pub struct CommonState {
     pub(crate) quic: Quic,
     #[cfg(feature = "secret_extraction")]
     pub(crate) enable_secret_extraction: bool,
+    tcpls: Tcpls,
 }
 
 impl CommonState {
@@ -859,6 +861,7 @@ impl CommonState {
             queued_key_update_message: None,
             other_tcpls_enabled: false,
             _tcpls_token: vec![0],
+            tcpls: Tcpls::new(),
 
             protocol: Protocol::Tcp,
             #[cfg(feature = "quic")]
@@ -1031,6 +1034,7 @@ impl CommonState {
         // but we're respecting it for plaintext data -- so we'll
         // be out by whatever the cipher+record overhead is.  That's a
         // constant and predictable amount, so it's not a terrible issue.
+        dbg!(&payload);
         let len = match limit {
             Limit::Yes => self
                 .sendable_tls
@@ -1038,10 +1042,15 @@ impl CommonState {
             Limit::No => payload.len(),
         };
 
+        let mut tcpls_record = vec![];
+        if self.other_tcpls_enabled {
+            tcpls::create_record(&payload, len, &mut tcpls_record, self.record_layer.get_seq_nbr());
+        }
+
         let iter = self.message_fragmenter.fragment_slice(
             ContentType::ApplicationData,
             ProtocolVersion::TLSv1_2,
-            &payload[..len],
+            &tcpls_record,
         );
         for m in iter {
             self.send_single_fragment(m);
