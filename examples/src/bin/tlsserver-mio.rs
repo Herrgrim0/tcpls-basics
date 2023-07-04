@@ -261,6 +261,11 @@ impl OpenConnection {
                     .unwrap();
 
                 debug!("plaintext read {:?}", buf.len());
+                let s = match std::str::from_utf8(&buf) {
+                    Ok(v) => v,
+                    Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
+                };
+                println!("read plaintext:\n{}",s);
                 self.incoming_plaintext(&buf);
             }
         }
@@ -686,9 +691,9 @@ fn main() {
                 }
                 _ => tlsserv.conn_event(poll.registry(), event),
             }
-            if tlsserv.is_tcpls_enabled(event) {
+            /*if tlsserv.is_tcpls_enabled(event) {
                 println!("\n\n\n CONNECTION TCPLS READY! \n\n\n", );
-            }
+            }*/
         }
     }
 }
