@@ -1042,15 +1042,15 @@ impl CommonState {
             Limit::No => payload.len(),
         };
 
-        let mut tcpls_record = vec![];
-        if self.other_tcpls_enabled {
-            tcpls::create_record(&payload, len, &mut tcpls_record, self.record_layer.get_seq_nbr());
-        }
+        let tcpls_payload = self.tcpls.create_record(&payload);
+        //if self.other_tcpls_enabled {
+        //    tcpls.create_record(&payload);
+        //}
 
         let iter = self.message_fragmenter.fragment_slice(
             ContentType::ApplicationData,
             ProtocolVersion::TLSv1_2,
-            &tcpls_record,
+            &tcpls_payload,
         );
         for m in iter {
             self.send_single_fragment(m);
