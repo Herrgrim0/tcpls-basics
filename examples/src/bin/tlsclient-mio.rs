@@ -497,10 +497,16 @@ fn main() {
             .write_all(httpreq.as_bytes())
             .unwrap();
     } else {
-        let mut stdin = io::stdin();
-        tlsclient
-            .read_source_to_end(&mut stdin)
-            .unwrap();
+        let mut input = String::new();
+        io::stdin()
+        .read_line(&mut input)
+        .expect("Failed to read line");
+        tlsclient.write_all(input.as_bytes()).unwrap();
+
+        //let mut stdin = io::stdin();
+        //tlsclient
+        //   .read_source_to_end(&mut input)
+        //   .unwrap();
     }
 
     let mut poll = mio::Poll::new().unwrap();
@@ -513,8 +519,8 @@ fn main() {
             tlsclient.ready(ev);
             tlsclient.reregister(poll.registry());
         }
-        if tlsclient.tls_conn.is_ready_for_tcpls(&tlsclient.tls_cfg) {
+        /*if tlsclient.tls_conn.is_ready_for_tcpls(&tlsclient.tls_cfg) {
         println!("\n\n\n CONNECTION TCPLS READY! \n\n\n", );
-        }
+        }*/
     }
 }
