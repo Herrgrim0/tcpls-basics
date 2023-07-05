@@ -19,7 +19,7 @@ use crate::record_layer;
 use crate::suites::SupportedCipherSuite;
 #[cfg(feature = "secret_extraction")]
 use crate::suites::{ExtractedSecrets, PartiallyExtractedSecrets};
-use crate::tcpls::{self, Tcpls};
+use crate::tcpls::Tcpls;
 #[cfg(feature = "tls12")]
 use crate::tls12::ConnectionSecrets;
 use crate::vecbuf::ChunkVecBuffer;
