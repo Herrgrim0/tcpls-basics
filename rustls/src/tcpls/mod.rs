@@ -1,6 +1,8 @@
-use std::io::Write;
+/// enum with TCPLS errors
+pub mod error;
 
-use crate::Error;
+use std::io::Write;
+use crate::tcpls::error::Error;
 
 /*enum_builder! {
     /// Tcpls frame type
@@ -38,6 +40,32 @@ impl Tcpls {
     pub fn create_record(&mut self, _payload: &[u8]) -> Vec<u8>{
         self.add_ping();
         self.snd_buf.clone()
+    }
+
+    /// read a tls record and parse every tcpls frame in it
+    pub fn read_record(&mut self, payload: &[u8]) -> Result<(), Error> {
+        // read buffer from the end for the 0-copy feature of tcpls
+        for mut i in (0..payload.len()).rev() {
+            match payload[i] {
+                0x01 => {self.add_ack(); i -= 1;},
+                0x04 => i -= self.read_ack(payload, i),
+                _ => return Err(Error::UnknownTcplsType),
+            }
+        }
+        Ok(())
+    }
+
+    /// read a ping frame and respond with a Ack
+    fn read_ack(&self, payload: &[u8], mut index: usize) -> usize {
+        index -= 1;
+        let slice = &payload[index-4..index];
+        let _conn_id = u32::from_be_bytes([slice[0], slice[1], slice[2], slice[3]]);
+        index -= 4;
+
+        let slice = &payload[index-8..index];
+        let _highest_tls_seq = u64::from_be_bytes([slice[0], slice[1], slice[2], slice[3],
+                                                       slice[4], slice[5], slice[6], slice[7]]);
+        13
     }
 
     /// empty the vector containing a record
