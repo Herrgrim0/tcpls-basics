@@ -407,6 +407,11 @@ impl ServerConnection {
         self.inner.common_state.other_tcpls_enabled && config.tcpls_enabled
     }
 
+    /// server received tcpls extension
+    pub fn client_accept_tcpls(&self) -> bool {
+        self.inner.common_state.other_tcpls_enabled
+    }
+
     /// Retrieves the SNI hostname, if any, used to select the certificate and
     /// private key.
     ///
