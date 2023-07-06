@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use mio::net::{TcpListener, TcpStream};
+use rustls::tcpls::Tcpls;
 
 #[macro_use]
 extern crate log;
@@ -46,6 +47,7 @@ struct TlsServer {
     next_id: usize,
     tls_config: Arc<rustls::ServerConfig>,
     mode: ServerMode,
+    tcpls_enabled: bool,
 }
 
 impl TlsServer {
@@ -56,6 +58,7 @@ impl TlsServer {
             next_id: 2,
             tls_config: cfg,
             mode,
+            tcpls_enabled: false,
         }
     }
 
@@ -72,7 +75,7 @@ impl TlsServer {
                     let token = mio::Token(self.next_id);
                     self.next_id += 1;
 
-                    let mut connection = OpenConnection::new(socket, token, mode, tls_conn);
+                    let mut connection = OpenConnection::new(socket, token, mode, tls_conn, self.tcpls_enabled);
                     connection.register(registry);
                     self.connections
                         .insert(token, connection);
@@ -104,7 +107,7 @@ impl TlsServer {
         }
     }
 
-    fn is_tcpls_enabled(&self, event: &mio::event::Event) -> bool {
+    fn _is_tcpls_enabled(&self, event: &mio::event::Event) -> bool {
         let token = event.token();
         if self.connections.contains_key(&token)
            && self.connections
@@ -114,6 +117,10 @@ impl TlsServer {
                     return true;
                 }
             false
+    }
+
+    fn set_tcpls(&mut self, is_enabled: bool) {
+        self.tcpls_enabled = is_enabled;
     }
 }
 
@@ -131,6 +138,8 @@ struct OpenConnection {
     tls_conn: rustls::ServerConnection,
     back: Option<TcpStream>,
     sent_http_response: bool,
+    tcpls_enabled: bool,
+    tcpls: Tcpls,
 }
 
 /// Open a plaintext TCP-level connection for forwarded connections.
@@ -166,6 +175,7 @@ impl OpenConnection {
         token: mio::Token,
         mode: ServerMode,
         tls_conn: rustls::ServerConnection,
+        tcpls_enabled: bool,
     ) -> Self {
         let back = open_back(&mode);
         Self {
@@ -177,6 +187,8 @@ impl OpenConnection {
             tls_conn,
             back,
             sent_http_response: false,
+            tcpls_enabled,
+            tcpls: Tcpls::new(),
         }
     }
 
@@ -261,11 +273,17 @@ impl OpenConnection {
                     .unwrap();
 
                 debug!("plaintext read {:?}", buf.len());
+                debug!("{:?}", &buf);
+                if self.tls_conn.client_accept_tcpls() && self.tcpls_enabled {
+                    dbg!("reading tcpls record");
+                    let _ = self.tcpls.read_record(&buf);
+                    self.tcpls.display_rcv_data();
+                }
                 let s = match std::str::from_utf8(&buf) {
                     Ok(v) => v,
                     Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
                 };
-                println!("read plaintext:\n{}",s);
+                println!("read plaintext: {}\n",s);
                 self.incoming_plaintext(&buf);
             }
         }
@@ -677,6 +695,10 @@ fn main() {
     };
 
     let mut tlsserv = TlsServer::new(listener, mode, config);
+
+    if args.flag_tcpls {
+        tlsserv.set_tcpls(true);
+    }
 
     let mut events = mio::Events::with_capacity(256);
     loop {
