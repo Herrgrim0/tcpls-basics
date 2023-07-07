@@ -328,9 +328,14 @@ impl OpenConnection {
     fn incoming_plaintext(&mut self, buf: &[u8]) {
         match self.mode {
             ServerMode::Echo => {
+                let tcpls_buf: Vec<u8> = Vec::new();
+                if self.tls_conn.client_accept_tcpls() && self.tcpls_enabled {
+                    self.tcpls.update_tls_seq(self.tls_conn.get_tls_record_seq());
+                    self.tcpls.create_record(buf);
+                }
                 self.tls_conn
                     .writer()
-                    .write_all(buf)
+                    .write_all(&tcpls_buf)
                     .unwrap();
             }
             ServerMode::Http => {
