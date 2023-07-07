@@ -412,6 +412,11 @@ impl ServerConnection {
         self.inner.common_state.other_tcpls_enabled
     }
 
+    /// get tls record seq 
+    pub fn get_tls_record_seq(&self) -> u64 {
+        self.inner.record_layer.get_seq_nbr()
+    }
+
     /// Retrieves the SNI hostname, if any, used to select the certificate and
     /// private key.
     ///
