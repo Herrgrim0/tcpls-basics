@@ -1,5 +1,5 @@
 /// Management of a TCPLS stream
-use std::sync::{Arc, Mutex, mpsc};
+use crate::tcpls::convert;
 
 // Max size of a TLS record minus size of
 // a TCPLS headers for stream data frame (16 bytes)
@@ -9,18 +9,33 @@ pub struct TcplsStream {
     stream_id: u32,
     offset: u64,
     snd_data : Vec<u8>,
-    rcv_data: Arc<Mutex<Vec<u8>>>,
+    rcv_data: Vec<u8>,
     frame: Vec<u8>,
 }
 
 impl TcplsStream {
-    pub fn new(stream_id: u32, r_data: Arc<Mutex<Vec<u8>>>) -> TcplsStream {
+    pub fn new(stream_id: u32, r_data: Vec<u8>) -> TcplsStream {
         TcplsStream {stream_id,
                      offset: 0,
                      snd_data: Vec::new(),
                      rcv_data: r_data,
                      frame: Vec::with_capacity(MAX_DATA_SIZE + 16),
                     }
+    }
+
+    /// receive a vector where frame type and 
+    /// stream id bytes have been removed
+    pub fn read_record(&self, new_data: &Vec<u8>) {
+        let mut cursor: usize = new_data.len();
+        let stream_offset: u64 = convert::slice_to_u64(&new_data[cursor-8..cursor]);
+        cursor -=8;
+
+        self.offset += stream_offset;
+
+        let stream_len: u16 = convert::slice_to_u16(&new_data[cursor-2..cursor]);
+        cursor -= 2;
+
+        self.rcv_data.extend_from_slice(&new_data[cursor-stream_len as usize..cursor]);
     }
 
     /// return a vec that fits in a TLS record
@@ -52,13 +67,13 @@ impl TcplsStream {
 /// e.g. instantiate a stream with data to send
 pub struct TcplsStreamBuilder {
     stream_id: u32,
-    rcv_data: Arc<Mutex<Vec<u8>>>,
+    rcv_data: Vec<u8>,
     snd_data: Vec<u8>,
 }
 
 impl TcplsStreamBuilder {
-    pub fn new(stream_id: u32, rcv_data: Arc<Mutex<Vec<u8>>>) -> TcplsStreamBuilder{
-        TcplsStreamBuilder { stream_id, rcv_data, snd_data: Vec::new() }
+    pub fn new(stream_id: u32) -> TcplsStreamBuilder{
+        TcplsStreamBuilder { stream_id, rcv_data: Vec::new(), snd_data: Vec::new() }
     }
 
     pub fn data_to_read(&mut self, data: &[u8]) {
