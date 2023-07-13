@@ -5,6 +5,7 @@ use crate::tcpls::convert;
 // a TCPLS headers for stream data frame (16 bytes)
 const MAX_DATA_SIZE: usize = 16368;
 
+/// Manage a tcpls stream
 pub struct TcplsStream {
     stream_id: u32,
     offset: u64,
@@ -14,6 +15,7 @@ pub struct TcplsStream {
 }
 
 impl TcplsStream {
+    /// create a new stream
     pub fn new(stream_id: u32, r_data: Vec<u8>) -> TcplsStream {
         TcplsStream {stream_id,
                      offset: 0,
@@ -25,7 +27,7 @@ impl TcplsStream {
 
     /// receive a vector where frame type and 
     /// stream id bytes have been removed
-    pub fn read_record(&self, new_data: &Vec<u8>) {
+    pub fn read_record(&mut self, new_data: &[u8]) {
         let mut cursor: usize = new_data.len();
         let stream_offset: u64 = convert::slice_to_u64(&new_data[cursor-8..cursor]);
         cursor -=8;
@@ -72,15 +74,18 @@ pub struct TcplsStreamBuilder {
 }
 
 impl TcplsStreamBuilder {
+    /// create a new builder of stream
     pub fn new(stream_id: u32) -> TcplsStreamBuilder{
         TcplsStreamBuilder { stream_id, rcv_data: Vec::new(), snd_data: Vec::new() }
     }
 
+    /// add data to the stream
     pub fn data_to_read(&mut self, data: &[u8]) {
-        self.snd_data = data.to_vec();
+        self.snd_data.copy_from_slice(data);
     }
 
-    pub fn build(&self) -> TcplsStream {
+    /// consumme the builder to create a stream
+    pub fn build(self) -> TcplsStream {
         TcplsStream { stream_id: self.stream_id, offset: 0, snd_data: self.snd_data, rcv_data: self.rcv_data, frame: Vec::new() }
     }
 }
