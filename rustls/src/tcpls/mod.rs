@@ -1,23 +1,24 @@
-/// enum with TCPLS errors
+use std::io::Write;
+
+///handle tcpls errors
 pub mod error;
 
-use std::io::Write;
+///handle a tcpls stream
+pub mod stream;
+
+///collection of function to transform bytes to int
+pub mod convert;
+
 use log::trace;
+use std::collections::HashMap;
 
 use crate::tcpls::error::Error;
+use crate::tcpls::stream::TcplsStream;
 
-/*enum_builder! {
-    /// Tcpls frame type
-    @U8
-    EnumName: TcplsFrameType;
-    EnumVal{
-        Padding => 0x00,
-        Ping => 0x01,
-        Ack => 0x04
-    }
-}*/
+use self::stream::TcplsStreamBuilder;
 
 // minimum length of a tcpls stream frame containing a chunk of data of 1 byte
+const MAX_RECORD_SIZE: usize = 16384;
 const MIN_STREAM_LEN: usize = 16; 
 
 const PADDING_FRAME: u8 = 0x00;
@@ -31,38 +32,95 @@ const NEW_ADDRESS_FRAME: u8 = 0x07;
 const REMOVE_ADDRESS_FRAME: u8 = 0x08;
 const STREAM_CHANGE_FRAME: u8 = 0x09;
 
-/// Handle one tcpls connection
-/// i.e 1 tcp stream
-//struct TcplsConnection {}
-
-
 /// Handle creation and decoding of tcpls frame
 pub struct Tcpls {
-    max_size: usize,
     conn_id: u32,
-    stream_id: u32,
-    snd_buf: Vec<u8>,
-    rcv_buf: Vec<u8>,
+    streams: HashMap<u32, TcplsStream>,
+    last_stream_id_created: u32,
+    snd_buf: Vec<u8>, // buffer to send data to the other party
+    rcv_buf: Vec<u8>, // buffer to receive data from the other party
     highest_tls_seq: u64,
 }
 
 impl Tcpls {
     /// create a new tcpls object to handle tcpls frames
     pub fn new() -> Tcpls {
+        let mut stream_1 = TcplsStreamBuilder::new(0).build();
+        let mut streams: HashMap<u32, TcplsStream> = HashMap::new();
+        streams.insert(0, stream_1);
+
         Tcpls { 
-            max_size: 16344, 
             conn_id: 0,
-            stream_id: 0,
-            snd_buf: vec![], 
-            rcv_buf: vec![],
+            streams,
+            last_stream_id_created: 0,
+            snd_buf: Vec::with_capacity(MAX_RECORD_SIZE), 
+            rcv_buf: Vec::with_capacity(MAX_RECORD_SIZE),
             highest_tls_seq: 0,
         }
+    }
+}
+
+
+/// Manage an underlying TCP/TLS connection
+/// and all the Tcpls features above it
+
+pub struct TcplsConnection {
+    // number refering the TCP connection
+    conn_id: u32,
+
+    // hashmap that link stream id to its stream objects
+    streams: TcplsStream,
+    
+    // remembering the last stream id given to avoir collision
+    last_stream_id_created: u32,
+
+    // buffer to send data to the other party
+    snd_buf: Vec<u8>, 
+    
+    // buffer to receive data from the other party
+    rcv_buf: Vec<u8>,
+
+    //highest TLS record sequence for the ACK frame
+    highest_tls_seq: u64,
+}
+
+
+impl TcplsConnection {
+    fn new(conn_id: u32) -> TcplsConnection {
+        let mut stream1 = TcplsStreamBuilder::new(0);
+        TcplsConnection { conn_id, 
+            streams: stream1.build(), 
+            last_stream_id_created: 0, 
+            snd_buf: Vec::new(), 
+            rcv_buf: Vec::with_capacity(16384), 
+            highest_tls_seq:0 ,
+            //tls_conn: 
+        }
+    }
+
+    fn send(&mut self) {
+        self.snd_buf = self.streams.create_stream_data_frame();
+    }
+
+    fn recv_stream(&mut self, mut offset: usize) {
+        let mut cursor: usize = 0;
+
+        let stream_id: u32 = convert::slice_to_u32(&self.rcv_buf[offset-4..offset]);
+        offset-=3;
+        
+        self.streams.read_record(&self.rcv_buf[..offset]);
+    
+    }
+
+    fn create_stream(&self) {
+        let new_stream_id = self.last_stream_id_created + 2;
+        let stream = TcplsStream::new(new_stream_id, self.snd_buf.clone());
     }
 
     /// gather all tcpls frames to create a record transmitted to tls
     pub fn create_record(&mut self, payload: &[u8]) -> Vec<u8>{
         trace!("creating tcpls record");
-        self.add_stream(payload);
+        //self.add_stream(payload);
         self.add_ping();
         trace!("tcpls record: {:?}", self.snd_buf);
         return self.snd_buf.clone()
@@ -83,8 +141,8 @@ impl Tcpls {
                 ACK_FRAME => {
                     consummed = self.read_ack(payload, i)},
                 STREAM_FRAME | STREAM_FRAME_FIN => {
-                    consummed = self.read_stream(payload, i);
-                    trace!("data consummed {}", consummed);},
+                    self.recv_stream(i);
+                    i = 0; },
                 NEW_TOKEN_FRAME => todo!(),
                 CONNECTION_RESET_FRAME => todo!(),
                 NEW_ADDRESS_FRAME => todo!(),
@@ -106,19 +164,14 @@ impl Tcpls {
         trace!("Ack frame received");
         offset -= 1;
         
-        let conn_id = Tcpls::slice_to_u32(&payload[offset-4..offset]);
+        let conn_id = convert::slice_to_u32(&payload[offset-4..offset]);
         offset -= 4;
 
-        let highest_tls_seq = Tcpls::slice_to_u64(&payload[offset-8..offset]);
+        let highest_tls_seq = convert::slice_to_u64(&payload[offset-8..offset]);
 
         trace!("Ack frame received on conn: {}, highest tls seq: {}", conn_id, highest_tls_seq);
 
-        13
-    }
-
-    /// empty the vector containing a record
-    pub fn flush(&mut self) {
-        let _ = self.snd_buf.flush();
+        13 // len of an ACK frame
     }
 
     /// update the highest tls seq, mainly for the ack
@@ -127,95 +180,16 @@ impl Tcpls {
     }
 
     fn add_ping(&mut self) {
-        if self.snd_buf.len() < self.max_size {
+        if self.snd_buf.len() < MAX_RECORD_SIZE {
             self.snd_buf.push(PING_FRAME);
         }
- 
     }
 
     fn add_ack(&mut self) {
-        if self.snd_buf.len() + 13 < self.max_size {
+        if self.snd_buf.len() + 13 < MAX_RECORD_SIZE {
             self.snd_buf.extend_from_slice(&self.highest_tls_seq.to_be_bytes());
             self.snd_buf.extend_from_slice(&self.conn_id.to_be_bytes());
             self.snd_buf.push(ACK_FRAME);
         }
-    }
-
-    fn add_stream(&mut self, payload: &[u8]) {
-        let max_fill_size = self.max_size - self.snd_buf.len() - MIN_STREAM_LEN;
-        let mut stream_len: u16 = 0;
-        if max_fill_size >= MIN_STREAM_LEN &&
-           max_fill_size <= payload.len() {
-            self.snd_buf.extend_from_slice(&payload[..max_fill_size]);
-            stream_len = max_fill_size as u16;
-        } else {
-            self.snd_buf.extend_from_slice(&payload[..payload.len()]);
-            stream_len = payload.len() as u16;
-        }
-        trace!("{:?}", self.snd_buf);
-
-        self.snd_buf.extend_from_slice(&stream_len.to_be_bytes());
-        trace!("{:?}", self.snd_buf);
-        let offset: u64 = 0;
-        self.snd_buf.extend_from_slice(&offset.to_be_bytes()); // TODO: implement offsetting
-        trace!("{:?}", self.snd_buf);
-        self.snd_buf.extend_from_slice(&self.stream_id.to_be_bytes());
-        trace!("stream frame: {}\n{}\n{}\n”", stream_len, offset, self.stream_id);
-        trace!("{:?}", self.snd_buf);
-        if max_fill_size <= payload.len() {
-            self.snd_buf.push(STREAM_FRAME);
-        } else {
-            self.snd_buf.push(STREAM_FRAME_FIN);
-        }
-
-    }
-
-    fn read_stream(&mut self, payload: &Vec<u8>, mut offset: usize) -> usize {
-        let mut start: usize = 0;
-        trace!("reading a stream: {}", payload[offset]);
-        offset -= 1; // avoid type byte
-
-
-        let stream_id: u32 = Tcpls::slice_to_u32(&payload[offset-4..offset]);
-        offset-=3;
-
-        let stream_offset: u64 = Tcpls::slice_to_u64(&payload[offset-8..offset]);
-        offset -=8;
-
-        let stream_len: u16 = Tcpls::slice_to_u16(&payload[offset-2..offset]);
-        offset -= 2;
-
-        if offset < stream_len.into() {
-            self.rcv_buf.extend_from_slice(&payload[0..offset]);
-        } else {
-            self.rcv_buf.extend_from_slice(&payload[offset-<u16 as Into<usize>>::into(stream_len)..offset]);
-        }
-
-        return stream_len as usize + 14;
-    }
-
-    /// display data received in a tcpls record
-    pub fn display_rcv_data(&self) {
-        let s = match std::str::from_utf8(&self.rcv_buf) {
-            Ok(v) => v,
-            Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
-        };
-        println!("{}", s);
-    }
-
-    fn slice_to_u16(bytes: &[u8]) -> u16 {
-        assert_eq!(bytes.len(), 2);
-        u16::from_be_bytes([bytes[0], bytes[1]])
-    }
-
-    fn slice_to_u32(bytes: &[u8]) -> u32 {
-        assert_eq!(bytes.len(), 4);
-        u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]])
-    }
-
-    fn slice_to_u64(bytes: &[u8]) -> u64 {
-        assert_eq!(bytes.len(), 8);
-        u64::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3],
-                            bytes[4], bytes[5], bytes[6], bytes[7]])
     }
 }
