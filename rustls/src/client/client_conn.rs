@@ -567,6 +567,12 @@ impl ClientConnection {
     pub fn extract_secrets(self) -> Result<ExtractedSecrets, Error> {
         self.inner.extract_secrets()
     }
+
+    /// get tls record seq 
+    pub fn get_tls_record_seq(&self) -> u64 {
+        self.inner.record_layer.get_seq_nbr()
+    }
+
 }
 
 impl Deref for ClientConnection {
