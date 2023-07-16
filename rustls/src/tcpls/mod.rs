@@ -1,4 +1,4 @@
-use std::io::Write;
+//use std::io::Write;
 
 ///handle tcpls errors
 pub mod error;
@@ -10,7 +10,6 @@ pub mod stream;
 pub mod convert;
 
 use log::trace;
-use std::collections::HashMap;
 
 use crate::tcpls::error::Error;
 use crate::tcpls::stream::TcplsStream;
@@ -19,7 +18,6 @@ use self::stream::TcplsStreamBuilder;
 
 // minimum length of a tcpls stream frame containing a chunk of data of 1 byte
 const MAX_RECORD_SIZE: usize = 16384;
-const MIN_STREAM_LEN: usize = 16; 
 
 const PADDING_FRAME: u8 = 0x00;
 const PING_FRAME: u8 = 0x01;
@@ -32,37 +30,15 @@ const NEW_ADDRESS_FRAME: u8 = 0x07;
 const REMOVE_ADDRESS_FRAME: u8 = 0x08;
 const STREAM_CHANGE_FRAME: u8 = 0x09;
 
-/// Handle creation and decoding of tcpls frame
-pub struct Tcpls {
-    conn_id: u32,
-    streams: HashMap<u32, TcplsStream>,
-    last_stream_id_created: u32,
-    snd_buf: Vec<u8>, // buffer to send data to the other party
-    rcv_buf: Vec<u8>, // buffer to receive data from the other party
-    highest_tls_seq: u64,
-}
-
-impl Tcpls {
-    /// create a new tcpls object to handle tcpls frames
-    pub fn new() -> Tcpls {
-        let mut stream_1 = TcplsStreamBuilder::new(0).build();
-        let mut streams: HashMap<u32, TcplsStream> = HashMap::new();
-        streams.insert(0, stream_1);
-
-        Tcpls { 
-            conn_id: 0,
-            streams,
-            last_stream_id_created: 0,
-            snd_buf: Vec::with_capacity(MAX_RECORD_SIZE), 
-            rcv_buf: Vec::with_capacity(MAX_RECORD_SIZE),
-            highest_tls_seq: 0,
-        }
-    }
-}
-
-
 /// Manage an underlying TCP/TLS connection
 /// and all the Tcpls features above it
+/// Work with the following event loop:
+/// loop {
+///     TCPLS_CONN process data (control & app) to send
+///     TLS send data
+///     TLS receive data
+///     TCPLS_CONN process data (control & app) received
+/// } -> concurrence can be implemented via mio
 
 pub struct TcplsConnection {
     // number refering the TCP connection
@@ -86,48 +62,86 @@ pub struct TcplsConnection {
 
 
 impl TcplsConnection {
-    fn new(conn_id: u32) -> TcplsConnection {
-        let mut stream1 = TcplsStreamBuilder::new(0);
+
+    /// create new tcpls connection
+    pub fn new(conn_id: u32) -> TcplsConnection {
+        let stream1 = TcplsStreamBuilder::new(0);
         TcplsConnection { conn_id, 
             streams: stream1.build(), 
             last_stream_id_created: 0, 
             snd_buf: Vec::new(), 
             rcv_buf: Vec::with_capacity(16384), 
-            highest_tls_seq:0 ,
-            //tls_conn: 
+            highest_tls_seq:0, 
         }
     }
 
-    fn send(&mut self) {
-        self.snd_buf = self.streams.create_stream_data_frame();
+    /// process the application and the control
+    /// data to send
+    pub fn process_w(&mut self) -> Option<Vec<u8>> {
+        // application data
+        let mut record: Vec<u8> = self.streams.create_stream_data_frame().unwrap_or_default();
+
+        // control data
+        if record.len() < MAX_RECORD_SIZE {
+            let space_left = MAX_RECORD_SIZE - record.len();
+            let mut i: usize = 0;
+            while i < space_left {
+                self.add_ping(&mut record);
+                i += 1;
+            }
+        };
+
+        match record.len() {
+            0 => None,
+            1 .. => Some(record),
+            _ => panic!("record creation shitted itself"),
+        }
     }
 
     fn recv_stream(&mut self, mut offset: usize) {
-        let mut cursor: usize = 0;
 
-        let stream_id: u32 = convert::slice_to_u32(&self.rcv_buf[offset-4..offset]);
+        let _: u32 = convert::slice_to_u32(&self.rcv_buf[offset-4..offset]);
         offset-=3;
         
         self.streams.read_record(&self.rcv_buf[..offset]);
     
     }
 
-    fn create_stream(&self) {
+    /// create a new stream to process data
+    fn _create_stream(&self) {
         let new_stream_id = self.last_stream_id_created + 2;
-        let stream = TcplsStream::new(new_stream_id, self.snd_buf.clone());
+        let _ = TcplsStream::new(new_stream_id, self.snd_buf.clone());
     }
 
     /// gather all tcpls frames to create a record transmitted to tls
-    pub fn create_record(&mut self, payload: &[u8]) -> Vec<u8>{
-        trace!("creating tcpls record");
-        //self.add_stream(payload);
-        self.add_ping();
+    pub fn create_record(&mut self) -> Vec<u8>{
+        let record: Vec<u8> =  match self.streams.create_stream_data_frame() {
+            Some(frame) => frame,
+            None => vec![],
+        };
+
         trace!("tcpls record: {:?}", self.snd_buf);
-        return self.snd_buf.clone()
+        
+        record
+    }
+
+    ///
+    fn _create_control_frames(&self) -> Option<Vec<u8>> {
+        todo!();
+    }
+
+    /// return connection ID
+    pub fn get_id(&self) -> u32 {
+        self.conn_id
+    }
+
+    /// send a ping
+    pub fn ping(&self) -> u8 {
+        PING_FRAME
     }
 
     /// read a tls record and parse every tcpls frame in it
-    pub fn read_record(&mut self, payload: &Vec<u8>) -> Result<(), Error> {
+    pub fn process_r(&mut self, payload: &Vec<u8>) -> Result<(), Error> {
         // read buffer from the end for the 0-copy feature of tcpls
         let mut i = payload.len() - 1;
         let mut consummed: usize = 0;
@@ -179,9 +193,14 @@ impl TcplsConnection {
         self.highest_tls_seq = tls_seq;
     }
 
-    fn add_ping(&mut self) {
-        if self.snd_buf.len() < MAX_RECORD_SIZE {
-            self.snd_buf.push(PING_FRAME);
+    /// fill a stream w/ data to send
+    pub fn get_data(&mut self, data: &[u8]) {
+        self.streams.get_data(data);
+    }
+
+    fn add_ping(&mut self, record: &mut Vec<u8>) {
+        if record.len() < MAX_RECORD_SIZE {
+            record.push(PING_FRAME);
         }
     }
 
