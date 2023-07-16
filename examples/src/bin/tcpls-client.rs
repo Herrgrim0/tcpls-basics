@@ -130,7 +130,7 @@ impl TlsClient {
                 .read_exact(&mut plaintext)
                 .unwrap();
             
-            let _ = self.tcpls_conn.read_record(&plaintext);
+            let _ = self.tcpls_conn.process_r(&plaintext);
             
             io::stdout()
                 .write_all(&plaintext)
