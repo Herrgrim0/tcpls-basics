@@ -1,3 +1,5 @@
+use std::io::Cursor;
+
 use log::trace;
 
 /// Management of a TCPLS stream
@@ -29,6 +31,7 @@ impl TcplsStream {
     /// stream id bytes have been removed
     pub fn read_record(&mut self, new_data: &[u8]) {
         let mut cursor: usize = new_data.len();
+
         let stream_offset: u64 = convert::slice_to_u64(&new_data[cursor-8..cursor]);
         cursor -=8;
 
@@ -49,13 +52,14 @@ impl TcplsStream {
         if self.snd_data[self.offset as usize..].len() >= MAX_DATA_SIZE {
             frame.copy_from_slice(&self.snd_data[self.offset as usize..self.offset as usize+MAX_DATA_SIZE]);
         } else {
-            frame.copy_from_slice(&self.snd_data[self.offset as usize..]);
+            frame.extend_from_slice(&self.snd_data[self.offset as usize..]);
             cp_len = (self.snd_data.len() - self.offset as usize) as u16;
             typ = 0x03;
         }
 
+
         self.add_meta_data_to_frame(&mut frame, cp_len, typ);
-        trace!("data frame create:\n{:?}", frame);
+        trace!("data frame created:\n{:?}", frame);
         
         Some(frame)
     }
@@ -72,6 +76,11 @@ impl TcplsStream {
         self.snd_data.extend_from_slice(&data);
 
         self.snd_data.len()
+    }
+
+    /// return a ref to the app data received
+    pub fn get_stream_data(&self) -> &[u8] {
+        &self.rcv_data
     }
 
 }

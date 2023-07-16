@@ -48,7 +48,7 @@ pub struct TcplsConnection {
     streams: TcplsStream,
     
     // remembering the last stream id given to avoir collision
-    last_stream_id_created: u32,
+    _last_stream_id_created: u32,
 
     // buffer to send data to the other party
     snd_buf: Vec<u8>, 
@@ -68,7 +68,7 @@ impl TcplsConnection {
         let stream1 = TcplsStreamBuilder::new(0);
         TcplsConnection { conn_id, 
             streams: stream1.build(), 
-            last_stream_id_created: 0, 
+            _last_stream_id_created: 0, 
             snd_buf: Vec::new(), 
             rcv_buf: Vec::with_capacity(16384), 
             highest_tls_seq:0, 
@@ -98,18 +98,18 @@ impl TcplsConnection {
         }
     }
 
-    fn recv_stream(&mut self, mut offset: usize) {
+    fn recv_stream(&mut self, payload: &[u8], mut offset: usize) {
 
-        let _: u32 = convert::slice_to_u32(&self.rcv_buf[offset-4..offset]);
-        offset-=3;
-        
-        self.streams.read_record(&self.rcv_buf[..offset]);
+        let _: u32 = convert::slice_to_u32(&payload[offset-4..offset]);
+        offset-=4;
+
+        self.streams.read_record(&payload[..offset]);
     
     }
 
     /// create a new stream to process data
     fn _create_stream(&self) {
-        let new_stream_id = self.last_stream_id_created + 2;
+        let new_stream_id = self._last_stream_id_created + 2;
         let _ = TcplsStream::new(new_stream_id, self.snd_buf.clone());
     }
 
@@ -155,7 +155,7 @@ impl TcplsConnection {
                 ACK_FRAME => {
                     consummed = self.read_ack(payload, i)},
                 STREAM_FRAME | STREAM_FRAME_FIN => {
-                    self.recv_stream(i);
+                    self.recv_stream(payload, i);
                     i = 0; },
                 NEW_TOKEN_FRAME => todo!(),
                 CONNECTION_RESET_FRAME => todo!(),
@@ -210,5 +210,10 @@ impl TcplsConnection {
             self.snd_buf.extend_from_slice(&self.conn_id.to_be_bytes());
             self.snd_buf.push(ACK_FRAME);
         }
+    }
+
+    /// return data processed by a stream
+    pub fn get_stream_data(&self) -> &[u8] {
+        self.streams.get_stream_data()
     }
 }
