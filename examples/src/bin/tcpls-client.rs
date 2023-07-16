@@ -135,6 +135,8 @@ impl TlsClient {
             io::stdout()
                 .write_all(&self.tcpls_conn.get_stream_data())
                 .unwrap();
+
+            println!("{}", std::str::from_utf8(&self.tcpls_conn.get_stream_data()).unwrap());
         }
 
         // If wethat fails, the peer might have started a clean TLS-level

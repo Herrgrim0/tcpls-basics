@@ -274,11 +274,9 @@ impl OpenConnection {
 
                 debug!("plaintext read {:?}", buf.len());
                 debug!("{:?}", &buf);
-                if self.tls_conn.client_accept_tcpls() && self.tcpls_enabled {
-                    dbg!("reading tcpls record");
-                    let _ = self.tcpls.process_r(&buf);
-                }
-                let s = match std::str::from_utf8(&buf) {
+
+                let _ = self.tcpls.process_r(&buf);
+                let s = match std::str::from_utf8(self.tcpls.get_stream_data()) {
                     Ok(v) => v,
                     Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
                 };
