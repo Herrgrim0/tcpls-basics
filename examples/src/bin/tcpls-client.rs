@@ -72,7 +72,7 @@ impl TlsClient {
     fn read_source_to_end(&mut self, rd: &mut dyn io::Read) -> io::Result<usize> {
         let mut buf = Vec::new();
         let len = rd.read_to_end(&mut buf)?;
-
+        self.tcpls_conn.get_data(&buf);
         self.tls_conn
             .writer()
             .write_all(&self.tcpls_conn.create_record())
@@ -131,9 +131,9 @@ impl TlsClient {
                 .unwrap();
             
             let _ = self.tcpls_conn.process_r(&plaintext);
-            
+            //println!("{}\n", self.tcpls_conn.get_stream_data());
             io::stdout()
-                .write_all(&plaintext)
+                .write_all(&self.tcpls_conn.get_stream_data())
                 .unwrap();
         }
 
@@ -205,20 +205,20 @@ impl io::Read for TlsClient {
 const USAGE: &str = "
 Connects to the TLS server at hostname:PORT.  The default PORT
 is 443.  3 features are proposed default one is read the stdin until
-EOF, --ping send every interval a Ping frame and receive an Ack frame, 
---file FILE transfer a file to the server
+EOF, --ping send every interval a Ping frame and receive 
+an Ack frame.  --file transfer a file to the server /.
 
 If --cafile is not supplied, a built-in set of CA certificates
 are used from the webpki-roots crate.
 
 Usage:
-  tlsclient-mio [options] [--suite SUITE ...] [--proto PROTO ...] [--protover PROTOVER ...] <hostname>
-  tlsclient-mio (--version | -v)
-  tlsclient-mio (--help | -h)
+  tcpls-client [options] [--suite SUITE ...] [--proto PROTO ...] [--protover PROTOVER ...] <hostname>
+  tcpls-client (--version | -v)
+  tcpls-client (--help | -h)
 
 Options:
     -p, --port PORT     Connect to PORT [default: 443].
-    --file FILE         Send FILE to the server.
+    --dfile FILE         Send FILE to the server.
     --ping              ping the server and wait for an ack.
     --cafile CAFILE     Read root certificates from CAFILE.
     --auth-key KEY      Read client authentication key from KEY.
@@ -555,6 +555,7 @@ fn main() {
                 tlsclient.ready(ev);
                 tlsclient.reregister(poll.registry());
             }
+            tlsclient.tcpls_conn.update_tls_seq(tlsclient.tls_conn.get_tls_record_seq());
         }
     }
 }

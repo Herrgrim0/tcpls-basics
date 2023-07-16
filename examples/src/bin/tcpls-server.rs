@@ -717,9 +717,6 @@ fn main() {
                 }
                 _ => tlsserv.conn_event(poll.registry(), event),
             }
-            /*if tlsserv.is_tcpls_enabled(event) {
-                println!("\n\n\n CONNECTION TCPLS READY! \n\n\n", );
-            }*/
         }
     }
 }
