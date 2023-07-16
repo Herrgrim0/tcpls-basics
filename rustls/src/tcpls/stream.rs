@@ -1,3 +1,5 @@
+use log::trace;
+
 /// Management of a TCPLS stream
 use crate::tcpls::convert;
 
@@ -11,7 +13,6 @@ pub struct TcplsStream {
     offset: u64,
     snd_data : Vec<u8>,
     rcv_data: Vec<u8>,
-    frame: Vec<u8>,
 }
 
 impl TcplsStream {
@@ -21,8 +22,7 @@ impl TcplsStream {
                      offset: 0,
                      snd_data: Vec::new(),
                      rcv_data: r_data,
-                     frame: Vec::with_capacity(MAX_DATA_SIZE + 16),
-                    }
+        }
     }
 
     /// receive a vector where frame type and 
@@ -41,20 +41,23 @@ impl TcplsStream {
     }
 
     /// return a vec that fits in a TLS record
-    pub fn create_stream_data_frame(&self) -> Vec<u8> {
+    pub fn create_stream_data_frame(&self) -> Option<Vec<u8>> {
         let mut frame: Vec<u8> = Vec::new(); // TODO: decide if still local var or struct mmbr 
+        let mut cp_len: u16 = MAX_DATA_SIZE as u16;
+        let mut typ: u8 = 0x02;
 
-        if self.snd_data[self.offset as usize..].len() >= frame.len() {
+        if self.snd_data[self.offset as usize..].len() >= MAX_DATA_SIZE {
             frame.copy_from_slice(&self.snd_data[self.offset as usize..self.offset as usize+MAX_DATA_SIZE]);
-            let cp_len = MAX_DATA_SIZE as u16;
-            self.add_meta_data_to_frame(&mut frame, cp_len, 0x02);
         } else {
             frame.copy_from_slice(&self.snd_data[self.offset as usize..]);
-            let cp_len = (self.snd_data.len() - self.offset as usize) as u16;
-            self.add_meta_data_to_frame(&mut frame, cp_len, 0x03);
+            cp_len = (self.snd_data.len() - self.offset as usize) as u16;
+            typ = 0x03;
         }
+
+        self.add_meta_data_to_frame(&mut frame, cp_len, typ);
+        trace!("data frame create:\n{:?}", frame);
         
-        frame
+        Some(frame)
     }
 
     fn add_meta_data_to_frame(&self, frame: &mut Vec<u8>, len: u16, type_value: u8) {
@@ -63,6 +66,14 @@ impl TcplsStream {
         frame.extend_from_slice(&self.stream_id.to_be_bytes());
         frame.push(type_value);
     }
+
+    /// retrieve data to send
+    pub fn get_data(&mut self, data: &[u8]) -> usize {
+        self.snd_data.extend_from_slice(&data);
+
+        self.snd_data.len()
+    }
+
 }
 
 /// Struct to build stream with different configuration
@@ -86,6 +97,6 @@ impl TcplsStreamBuilder {
 
     /// consumme the builder to create a stream
     pub fn build(self) -> TcplsStream {
-        TcplsStream { stream_id: self.stream_id, offset: 0, snd_data: self.snd_data, rcv_data: self.rcv_data, frame: Vec::new() }
+        TcplsStream { stream_id: self.stream_id, offset: 0, snd_data: self.snd_data, rcv_data: self.rcv_data }
     }
 }
