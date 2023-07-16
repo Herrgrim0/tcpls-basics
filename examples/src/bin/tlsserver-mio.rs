@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use mio::net::{TcpListener, TcpStream};
-use rustls::tcpls::Tcpls;
+use rustls::tcpls::TcplsConnection;
 
 #[macro_use]
 extern crate log;
@@ -139,7 +139,7 @@ struct OpenConnection {
     back: Option<TcpStream>,
     sent_http_response: bool,
     tcpls_enabled: bool,
-    tcpls: Tcpls,
+    tcpls: TcplsConnection,
 }
 
 /// Open a plaintext TCP-level connection for forwarded connections.
@@ -188,7 +188,7 @@ impl OpenConnection {
             back,
             sent_http_response: false,
             tcpls_enabled,
-            tcpls: Tcpls::new(),
+            tcpls: TcplsConnection::new(0),
         }
     }
 
@@ -276,8 +276,7 @@ impl OpenConnection {
                 debug!("{:?}", &buf);
                 if self.tls_conn.client_accept_tcpls() && self.tcpls_enabled {
                     dbg!("reading tcpls record");
-                    let _ = self.tcpls.read_record(&buf);
-                    self.tcpls.display_rcv_data();
+                    let _ = self.tcpls.process_r(&buf);
                 }
                 let s = match std::str::from_utf8(&buf) {
                     Ok(v) => v,
@@ -331,7 +330,7 @@ impl OpenConnection {
                 let tcpls_buf: Vec<u8> = Vec::new();
                 if self.tls_conn.client_accept_tcpls() && self.tcpls_enabled {
                     self.tcpls.update_tls_seq(self.tls_conn.get_tls_record_seq());
-                    self.tcpls.create_record(buf);
+                    self.tcpls.create_record();
                 }
                 self.tls_conn
                     .writer()
@@ -704,7 +703,7 @@ fn main() {
     if args.flag_tcpls {
         tlsserv.set_tcpls(true);
     }
-
+    
     let mut events = mio::Events::with_capacity(256);
     loop {
         poll.poll(&mut events, None).unwrap();

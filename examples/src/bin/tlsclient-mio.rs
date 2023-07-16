@@ -1,9 +1,10 @@
 use std::process;
 use std::sync::Arc;
 
+use log::debug;
 use mio::net::TcpStream;
 use rustls::ClientConfig;
-use rustls::tcpls::Tcpls;
+use rustls::tcpls::TcplsConnection;
 
 use std::fs;
 use std::io;
@@ -28,7 +29,7 @@ struct TlsClient {
     clean_closure: bool,
     tls_conn: rustls::ClientConnection,
     tls_cfg: Arc<ClientConfig>,
-    tcpls_conn: Tcpls,
+    tcpls_conn: TcplsConnection,
 }
 
 impl TlsClient {
@@ -43,7 +44,7 @@ impl TlsClient {
             clean_closure: false,
             tls_cfg: cfg.clone(),
             tls_conn: rustls::ClientConnection::new(cfg, server_name).unwrap(),
-            tcpls_conn: Tcpls::new(),
+            tcpls_conn: TcplsConnection::new(0),
         }
     }
 
@@ -68,21 +69,17 @@ impl TlsClient {
     fn read_source_to_end(&mut self, rd: &mut dyn io::Read) -> io::Result<usize> {
         let mut buf = Vec::new();
         let len = rd.read_to_end(&mut buf)?;
-        self.tls_conn
+        debug!("writing to buf");
+        if self.tls_conn.is_ready_for_tcpls(&self.tls_cfg) {
+            self.tcpls_conn.get_data(&buf);
+            self.tls_conn.writer().write_all(&self.tcpls_conn.create_record()).unwrap();
+        } else {
+            self.tls_conn
             .writer()
             .write_all(&buf)
             .unwrap();
-        Ok(len)
-    }
-
-    fn read_source_to_end_tcpls(&mut self, stdin: &mut io::Stdin) -> io::Result<usize> {
-        let mut tcpls_buf = vec![];
-        let len  = stdin.read_to_end(&mut tcpls_buf)?;
-        let tcpls_vec = self.tcpls_conn.create_record(&tcpls_buf);
-        self.tls_conn
-        .writer()
-        .write_all(&tcpls_vec)
-        .unwrap();
+        }
+        debug!("data sent!");
         Ok(len)
     }
 
@@ -135,8 +132,7 @@ impl TlsClient {
                 .read_exact(&mut plaintext)
                 .unwrap();
             if self.tls_conn.is_ready_for_tcpls(&self.tls_cfg) {
-                let _ = self.tcpls_conn.read_record(&plaintext);
-                self.tcpls_conn.display_rcv_data();
+                let _ = self.tcpls_conn.process_r(&plaintext);
             }
             io::stdout()
                 .write_all(&plaintext)
@@ -504,6 +500,7 @@ fn main() {
         .as_str()
         .try_into()
         .expect("invalid DNS name");
+    debug!("initialize tls client");
     let mut tlsclient = TlsClient::new(sock, server_name, config);
 
     if args.flag_http {
@@ -516,29 +513,18 @@ fn main() {
             .write_all(httpreq.as_bytes())
             .unwrap();
     } else {
-        dbg!("sending msg");
+        debug!("before loop");
+        //while tlsclient.tls_conn.is_handshaking() {}
         //let mut input = String::new();
         /*io::stdin().read_line(&mut input).expect("Failed to read line");*/
         let mut stdin = io::stdin();
-        let tcpls_state = tlsclient.tls_conn.is_ready_for_tcpls(&tlsclient.tls_cfg);
-        dbg!(tcpls_state);
-        if tcpls_state {
-            dbg!("Using tcpls to send");
-            // create a buffer for a tls record
-            // then create a tcpls record and send it to tls
 
-            tlsclient.read_source_to_end_tcpls(&mut stdin).unwrap();
-            tlsclient.tcpls_conn.flush();
-        } else {
-
-            tlsclient.read_source_to_end_tcpls(&mut stdin).unwrap();
-        }
+        tlsclient.read_source_to_end(&mut stdin).unwrap();
     }
 
     let mut poll = mio::Poll::new().unwrap();
     let mut events = mio::Events::with_capacity(32);
     tlsclient.register(poll.registry());
-    let mut input = String::new();
     loop {
         poll.poll(&mut events, None).unwrap();
 
@@ -550,7 +536,6 @@ fn main() {
         //io::stdin().read_line(&mut input).expect("Failed to read line");
         //let _tcpls_vec = tlsclient.tcpls_conn.create_record(&input.as_bytes());
         //tlsclient.tls_conn.writer().write_all(&tcpls_vec).unwrap();
-        tlsclient.tcpls_conn.flush();
     }
 }
 
