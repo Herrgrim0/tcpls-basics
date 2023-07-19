@@ -1,13 +1,15 @@
 /// Simplified version of tlsclient-mio
 /// to show tcpls features
 
+use std::thread::sleep;
 use std::process;
 use std::sync::Arc;
-
+use std::time::Duration;
+use log::debug;
 use mio::net::TcpStream;
-use std::fs::File;
 use rustls::ClientConfig;
 use rustls::tcpls::TcplsConnection;
+use std::fs::File;
 
 use std::fs;
 use std::io;
@@ -220,7 +222,7 @@ Usage:
 
 Options:
     -p, --port PORT     Connect to PORT [default: 443].
-    --dfile FILE         Send FILE to the server.
+    --file FILE         Send FILE to the server.
     --ping              ping the server and wait for an ack.
     --cafile CAFILE     Read root certificates from CAFILE.
     --auth-key KEY      Read client authentication key from KEY.
@@ -502,10 +504,10 @@ fn main() {
         .as_str()
         .try_into()
         .expect("invalid DNS name");
+
     let mut tlsclient = TlsClient::new(sock, server_name, config);
 
     // Where serious things begin
-    //while tlsclient.tls_conn.is_handshaking() {}
 
     if args.flag_file.is_some() {
         // send a file over a TCPLS connection
@@ -517,6 +519,7 @@ fn main() {
         let mut file = File::open(&filename).expect("Error while opening file");
 
         // send file
+        debug!("send file: {:?}", filename);
         let _ = tlsclient.read_source_to_end(&mut file);
 
         let mut poll = mio::Poll::new().unwrap();
@@ -524,9 +527,15 @@ fn main() {
 
         poll.poll(&mut events, None).unwrap();
 
-        for ev in events.iter() {
-            tlsclient.ready(ev);
-            tlsclient.reregister(poll.registry());
+        tlsclient.register(poll.registry());
+        loop {
+            poll.poll(&mut events, None).unwrap();
+
+            for ev in events.iter() {
+                tlsclient.ready(ev);
+                tlsclient.reregister(poll.registry());
+            }
+            tlsclient.tcpls_conn.update_tls_seq(tlsclient.tls_conn.get_tls_record_seq());
         }
 
         //TODO: send the file via TCPLS and receive it back
@@ -534,13 +543,28 @@ fn main() {
     } else if args.flag_ping {
         // send a ping and wait an Ack over a TCPLS connection
         let ping: Vec<u8> = vec![tlsclient.tcpls_conn.ping()];
+
+        let mut poll = mio::Poll::new().unwrap();
+        let mut events = mio::Events::with_capacity(32);
+        tlsclient.register(poll.registry());
+        
         loop {
-            //tlsclient.tcpls_conn.ping()
+            debug!("sending a ping {:?}", &ping);
             tlsclient.tls_conn
-                     .writer()
-                     .write_all(&ping)
-                     .expect("Failure when sending Ping");
+                    .writer()
+                    .write_all(&ping)
+                    .unwrap();
+            poll.poll(&mut events, None).unwrap();
+
+            for ev in events.iter() {
+                tlsclient.ready(ev);
+                tlsclient.reregister(poll.registry());
+            }
+            tlsclient.tcpls_conn.update_tls_seq(tlsclient.tls_conn.get_tls_record_seq());
+            tlsclient.tcpls_conn.get_stream_data();
+            sleep(Duration::from_millis(1000));
         }
+
     } else {
         // send a string over a TCPLS connection
         let mut stdin = io::stdin();

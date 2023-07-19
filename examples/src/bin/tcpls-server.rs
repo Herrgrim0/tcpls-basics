@@ -26,7 +26,7 @@ use rustls::{self, RootCertStore};
 const LISTENER: mio::Token = mio::Token(0);
 
 // Which mode the server operates in.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum ServerMode {
     /// Write back received bytes
     Echo,
@@ -102,6 +102,7 @@ impl TlsServer {
                 .ready(registry, event);
 
             if self.connections[&token].is_closed() {
+                //dbg!("{:#?}", &self.connections[&token]);
                 self.connections.remove(&token);
             }
         }
@@ -280,7 +281,7 @@ impl OpenConnection {
                     Ok(v) => v,
                     Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
                 };
-                println!("read plaintext: {}\n",s);
+                //println!("read plaintext: {}\n",s);
                 self.incoming_plaintext(&buf);
             }
         }
@@ -325,11 +326,9 @@ impl OpenConnection {
     fn incoming_plaintext(&mut self, buf: &[u8]) {
         match self.mode {
             ServerMode::Echo => {
-                let tcpls_buf: Vec<u8> = Vec::new();
-                if self.tls_conn.client_accept_tcpls() && self.tcpls_enabled {
-                    self.tcpls.update_tls_seq(self.tls_conn.get_tls_record_seq());
-                    self.tcpls.create_record();
-                }
+                self.tcpls.update_tls_seq(self.tls_conn.get_tls_record_seq());
+                let tcpls_buf = self.tcpls.create_record();
+                debug!("{:?}, len {}", &tcpls_buf, &tcpls_buf.len());
                 self.tls_conn
                     .writer()
                     .write_all(&tcpls_buf)
