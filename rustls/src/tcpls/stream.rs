@@ -6,7 +6,7 @@ use crate::tcpls::convert;
 
 // Max size of a TLS record minus size of
 // a TCPLS headers for stream data frame (16 bytes)
-const MAX_DATA_SIZE: usize = 16368;
+const MAX_DATA_SIZE: usize = usize::pow(2, 14) - 3325; // error when using write_tls with size above this value
 
 /// Manage a tcpls stream
 #[derive(Debug)]
@@ -47,7 +47,7 @@ impl TcplsStream {
     }
 
     /// return a vec that fits in a TLS record
-    pub fn create_stream_data_frame(&self) -> Option<Vec<u8>> {
+    pub fn create_data_frame(&mut self) -> Option<Vec<u8>> {
         let mut frame: Vec<u8> = Vec::new(); // TODO: decide if still local var or struct mmbr 
         let mut cp_len: u16 = MAX_DATA_SIZE as u16;
         let mut typ: u8 = 0x02;
@@ -64,6 +64,7 @@ impl TcplsStream {
             typ = 0x03;
         }
 
+        self.offset += cp_len as u64;
 
         self.add_meta_data_to_frame(&mut frame, cp_len, typ);
         trace!("data frame created:\n{:?}", frame);
@@ -90,29 +91,35 @@ impl TcplsStream {
         &self.rcv_data
     }
 
+    /// return true if there is still data to
+    /// send. Compare offset and len of the buffer
+    /// of data to send to do so.
+    pub fn has_data_to_send(&self) -> bool {
+        return self.snd_data.len() > self.offset as usize
+    }
+
 }
 
 /// Struct to build stream with different configuration
 /// e.g. instantiate a stream with data to send
 pub struct TcplsStreamBuilder {
     stream_id: u32,
-    rcv_data: Vec<u8>,
     snd_data: Vec<u8>,
 }
 
 impl TcplsStreamBuilder {
     /// create a new builder of stream
     pub fn new(stream_id: u32) -> TcplsStreamBuilder{
-        TcplsStreamBuilder { stream_id, rcv_data: Vec::new(), snd_data: Vec::new() }
+        TcplsStreamBuilder { stream_id, snd_data: Vec::new() }
     }
 
     /// add data to the stream
-    pub fn data_to_read(&mut self, data: &[u8]) {
-        self.snd_data.copy_from_slice(data);
+    pub fn add_data(&mut self, data: &[u8]) {
+        self.snd_data.extend_from_slice(data);
     }
 
     /// consumme the builder to create a stream
     pub fn build(self) -> TcplsStream {
-        TcplsStream { stream_id: self.stream_id, offset: 0, snd_data: self.snd_data, rcv_data: self.rcv_data }
+        TcplsStream { stream_id: self.stream_id, offset: 0, snd_data: self.snd_data, rcv_data: Vec::new() }
     }
 }

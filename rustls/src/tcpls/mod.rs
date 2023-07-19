@@ -52,6 +52,7 @@ pub struct TcplsConnection {
 
     //highest TLS record sequence for the ACK frame
     highest_tls_seq: u64,
+
 }
 
 
@@ -74,7 +75,18 @@ impl TcplsConnection {
     /// data to send
     pub fn process_w(&mut self) -> Option<Vec<u8>> {
         // application data
-        let mut record: Vec<u8> = self.streams.get(&0)?.create_stream_data_frame().unwrap_or_default();
+        let mut record: Vec<u8> = Vec::with_capacity(MAX_RECORD_SIZE);
+
+        for stream in self.streams.values_mut() {
+            if !(record.len() < MAX_RECORD_SIZE) {
+                break;
+            }
+
+            if stream.has_data_to_send() {
+                record.extend_from_slice(&stream.create_data_frame().unwrap_or_default());
+            }
+
+        }
 
         // control data
         if record.len() < MAX_RECORD_SIZE {
@@ -114,13 +126,13 @@ impl TcplsConnection {
     /// add a new stream to the current connection
     /// the stream has to be created beforehand with
     /// the TcplsStreamBuilder
-    pub fn add_stream(&mut self, n_stream: TcplsStream) {
-        self.streams.insert(self._last_stream_id_created+2, n_stream);
+    pub fn add_stream(&mut self, n_stream: TcplsStream, id: u32) {
+        self.streams.insert(id, n_stream);
     }
 
     /// gather all tcpls frames to create a record transmitted to tls
     pub fn create_record(&mut self) -> Vec<u8>{
-        let mut record: Vec<u8> =  match self.streams.get(&0).unwrap().create_stream_data_frame() {
+        let mut record: Vec<u8> =  match self.streams.get_mut(&0).unwrap().create_data_frame() {
             Some(frame) => frame,
             None => vec![],
         };
@@ -146,6 +158,18 @@ impl TcplsConnection {
     /// send a ping
     pub fn ping(&self) -> u8 {
         PING_FRAME
+    }
+
+    /// probe each stream to see if there is still 
+    /// data to send
+    pub fn has_data(&self) -> bool {
+        let mut ans: bool = true;
+        for stream in self.streams.values() {
+            trace!("{}", stream.has_data_to_send());
+            ans = ans && stream.has_data_to_send();
+        }
+
+        ans
     }
 
     /// read a tls record and parse every tcpls frame in it
