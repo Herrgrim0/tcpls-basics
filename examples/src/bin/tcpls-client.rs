@@ -9,6 +9,7 @@ use log::debug;
 use mio::net::TcpStream;
 use rustls::ClientConfig;
 use rustls::tcpls::TcplsConnection;
+use rustls::tcpls::stream::TcplsStreamBuilder;
 use std::fs::File;
 
 use std::fs;
@@ -81,6 +82,16 @@ impl TlsClient {
             .unwrap();
 
         Ok(len)
+    }
+
+    fn send_data(&mut self) {
+        if self.tcpls_conn.has_data() {
+            let data = self.tcpls_conn.create_record();
+            debug!("sending data");
+            self.tls_conn
+            .writer()
+            .write_all(&data).unwrap();
+        }    
     }
 
     /// We're ready to do a read.
@@ -222,7 +233,7 @@ Usage:
 
 Options:
     -p, --port PORT     Connect to PORT [default: 443].
-    --file FILE         Send FILE to the server.
+    --file FILES        Send FILES to the server (multiple files can be given. Each one will be convey via a stream).
     --ping              ping the server and wait for an ack.
     --cafile CAFILE     Read root certificates from CAFILE.
     --auth-key KEY      Read client authentication key from KEY.
@@ -247,7 +258,7 @@ Options:
 #[derive(Debug, Deserialize)]
 struct Args {
     flag_port: Option<u16>,
-    flag_file: Option<String>,
+    flag_file: Option<Vec<String>>,
     flag_ping: bool,
     flag_verbose: bool,
     flag_protover: Vec<String>,
@@ -511,25 +522,35 @@ fn main() {
 
     if args.flag_file.is_some() {
         // send a file over a TCPLS connection
-        let filename = match args.flag_file {
+        let mut stream_id = 0;
+        let filenames = match args.flag_file {
             Some(x) => x,
             None => panic!("No file given!"),
         };
 
-        let mut file = File::open(&filename).expect("Error while opening file");
+        for filename in filenames {
+            let mut file = File::open(&filename).expect("Error while opening file");
+            let mut data: Vec<u8> = Vec::new();
+            let _ = file.read_to_end(&mut data).expect("error while reading file");
+            let mut n_stream = TcplsStreamBuilder::new(stream_id);
+            n_stream.add_data(&data);
+            tlsclient.tcpls_conn.add_stream(n_stream.build(), stream_id);
+            stream_id += 2;
+        }
+        debug!("streams created");
+        
 
         // send file
-        debug!("send file: {:?}", filename);
-        let _ = tlsclient.read_source_to_end(&mut file);
 
         let mut poll = mio::Poll::new().unwrap();
         let mut events = mio::Events::with_capacity(32);
-
-        poll.poll(&mut events, None).unwrap();
+        debug!("mio set");
 
         tlsclient.register(poll.registry());
+        debug!("Sending file");
         loop {
             poll.poll(&mut events, None).unwrap();
+            tlsclient.send_data();
 
             for ev in events.iter() {
                 tlsclient.ready(ev);
