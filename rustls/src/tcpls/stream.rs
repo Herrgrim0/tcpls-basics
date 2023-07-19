@@ -1,4 +1,3 @@
-use std::io::Cursor;
 
 use log::trace;
 
@@ -10,6 +9,7 @@ use crate::tcpls::convert;
 const MAX_DATA_SIZE: usize = 16368;
 
 /// Manage a tcpls stream
+#[derive(Debug)]
 pub struct TcplsStream {
     stream_id: u32,
     offset: u64,
@@ -29,7 +29,8 @@ impl TcplsStream {
 
     /// receive a vector where frame type and 
     /// stream id bytes have been removed
-    pub fn read_record(&mut self, new_data: &[u8]) {
+    /// return the number of bytes read
+    pub fn read_record(&mut self, new_data: &[u8]) -> usize {
         let mut cursor: usize = new_data.len();
 
         let stream_offset: u64 = convert::slice_to_u64(&new_data[cursor-8..cursor]);
@@ -39,8 +40,10 @@ impl TcplsStream {
 
         let stream_len: u16 = convert::slice_to_u16(&new_data[cursor-2..cursor]);
         cursor -= 2;
-
+        trace!("cursor: {}, stream_len: {}", cursor, stream_len);
         self.rcv_data.extend_from_slice(&new_data[cursor-stream_len as usize..cursor]);
+
+        stream_len as usize + 10
     }
 
     /// return a vec that fits in a TLS record
@@ -49,8 +52,12 @@ impl TcplsStream {
         let mut cp_len: u16 = MAX_DATA_SIZE as u16;
         let mut typ: u8 = 0x02;
 
+        if self.snd_data.is_empty() {
+            return None;
+        };
+
         if self.snd_data[self.offset as usize..].len() >= MAX_DATA_SIZE {
-            frame.copy_from_slice(&self.snd_data[self.offset as usize..self.offset as usize+MAX_DATA_SIZE]);
+            frame.extend_from_slice(&self.snd_data[self.offset as usize..self.offset as usize+MAX_DATA_SIZE]);
         } else {
             frame.extend_from_slice(&self.snd_data[self.offset as usize..]);
             cp_len = (self.snd_data.len() - self.offset as usize) as u16;
