@@ -67,7 +67,7 @@ impl TcplsStream {
         self.offset += cp_len as u64;
 
         self.add_meta_data_to_frame(&mut frame, cp_len, typ);
-        trace!("data frame created:\n{:?}", frame);
+        trace!("stream {} created data frame", self.stream_id);
         
         Some(frame)
     }
@@ -96,6 +96,21 @@ impl TcplsStream {
     /// of data to send to do so.
     pub fn has_data_to_send(&self) -> bool {
         return self.snd_data.len() > self.offset as usize
+    }
+
+    /// return id
+    pub fn get_id(&self) -> u32 {
+        self.stream_id
+    }
+
+    /// return len data to send
+    pub fn get_len(&self) -> usize {
+        self.snd_data.len()
+    }
+
+    /// return current offset
+    pub fn get_offset(&self) -> u64 {
+        self.offset
     }
 
 }
