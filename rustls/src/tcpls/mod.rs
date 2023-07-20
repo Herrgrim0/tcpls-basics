@@ -14,7 +14,7 @@ use crate::tcpls::error::Error;
 use crate::tcpls::stream::{TcplsStream, TcplsStreamBuilder};
 
 // minimum length of a tcpls stream frame containing a chunk of data of 1 byte
-const MAX_RECORD_SIZE: usize = 16384;
+const MAX_RECORD_SIZE: usize = usize::pow(2, 14) - 3325;
 
 const PADDING_FRAME: u8 = 0x00;
 const PING_FRAME: u8 = 0x01;
@@ -78,6 +78,7 @@ impl TcplsConnection {
         let mut record: Vec<u8> = Vec::with_capacity(MAX_RECORD_SIZE);
 
         for stream in self.streams.values_mut() {
+            trace!("stream: {}, len: {}, offset {}", stream.get_id(), stream.get_len(), stream.get_offset());
             if !(record.len() < MAX_RECORD_SIZE) {
                 break;
             }
@@ -85,7 +86,6 @@ impl TcplsConnection {
             if stream.has_data_to_send() {
                 record.extend_from_slice(&stream.create_data_frame().unwrap_or_default());
             }
-
         }
 
         // control data
@@ -108,19 +108,25 @@ impl TcplsConnection {
     // return the number of bytes read
     fn recv_stream(&mut self, payload: &[u8], mut offset: usize) -> usize {
 
-        let _: u32 = convert::slice_to_u32(&payload[offset-4..offset]);
+        let stream_id: u32 = convert::slice_to_u32(&payload[offset-4..offset]);
         offset-=4;
-
-        let st = self.streams.get_mut(&0).unwrap();
-        st.read_record(&payload[..offset]) + 4
-        
+        if self.streams.contains_key(&stream_id) {
+            let st = self.streams.get_mut(&stream_id).unwrap();
+            st.read_record(&payload[..offset]) + 4
+        } else {
+            self.create_stream(payload, offset)
+        }
     }
 
     /// create a new stream to process data
-    fn _create_stream(&mut self) {
-        let new_stream_id = self._last_stream_id_created + 2;
-        let n_stream = TcplsStream::new(new_stream_id, self.snd_buf.clone());
+    fn create_stream(&mut self, payload: &[u8], mut offset: usize) -> usize {
+        let new_stream_id: u32 = convert::slice_to_u32(&payload[offset-4..offset]);
+        offset -= 4;
+        let mut n_stream = TcplsStream::new(new_stream_id, Vec::new());
+        let consummed = n_stream.read_record(&payload[..offset]);
         self.streams.insert(new_stream_id, n_stream);
+
+        consummed + 4
     }
 
     /// add a new stream to the current connection
@@ -163,12 +169,11 @@ impl TcplsConnection {
     /// probe each stream to see if there is still 
     /// data to send
     pub fn has_data(&self) -> bool {
-        let mut ans: bool = true;
+        let mut ans: bool = false;
         for stream in self.streams.values() {
-            trace!("{}", stream.has_data_to_send());
-            ans = ans && stream.has_data_to_send();
+            ans = ans || stream.has_data_to_send();
         }
-
+        trace!("{}", ans);
         ans
     }
 
