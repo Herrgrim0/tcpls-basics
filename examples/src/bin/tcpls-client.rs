@@ -86,7 +86,8 @@ impl TlsClient {
 
     fn send_data(&mut self) {
         if self.tcpls_conn.has_data() {
-            let data = self.tcpls_conn.create_record();
+            let data = self.tcpls_conn.process_w().unwrap();
+            debug!("data len: {}", data.len());
             debug!("sending data");
             self.tls_conn
             .writer()
@@ -233,7 +234,7 @@ Usage:
 
 Options:
     -p, --port PORT     Connect to PORT [default: 443].
-    --file FILES        Send FILES to the server (multiple files can be given. Each one will be convey via a stream).
+    --file FILES        Send FILES to the server (if multiple files given. put them quoted and separated by a space).
     --ping              ping the server and wait for an ack.
     --cafile CAFILE     Read root certificates from CAFILE.
     --auth-key KEY      Read client authentication key from KEY.
@@ -258,7 +259,7 @@ Options:
 #[derive(Debug, Deserialize)]
 struct Args {
     flag_port: Option<u16>,
-    flag_file: Option<Vec<String>>,
+    flag_file: Option<String>,
     flag_ping: bool,
     flag_verbose: bool,
     flag_protover: Vec<String>,
@@ -523,11 +524,11 @@ fn main() {
     if args.flag_file.is_some() {
         // send a file over a TCPLS connection
         let mut stream_id = 0;
-        let filenames = match args.flag_file {
+        let raw_filenames = match args.flag_file {
             Some(x) => x,
             None => panic!("No file given!"),
         };
-
+        let filenames: Vec<&str> = raw_filenames.split(' ').collect();
         for filename in filenames {
             let mut file = File::open(&filename).expect("Error while opening file");
             let mut data: Vec<u8> = Vec::new();
