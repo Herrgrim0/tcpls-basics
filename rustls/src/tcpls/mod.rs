@@ -14,6 +14,16 @@ use crate::tcpls::error::Error;
 use crate::tcpls::stream::{TcplsStream, TcplsStreamBuilder};
 use crate::tcpls::utils::{constant, conversion};
 
+/// Differentiate the instanciation
+/// of the TCPLS session
+#[derive(Debug)]
+pub enum Role {
+    /// represent a client
+    Client,
+    /// represent a server
+    Server,
+}
+
 /// Manage an underlying TCP/TLS connection
 /// and all the Tcpls features above it
 /// Work with the following event loop:
@@ -42,13 +52,15 @@ pub struct TcplsConnection {
 
     ack_received: bool,
 
+    role: Role,
+
 }
 
 
 impl TcplsConnection {
 
     /// create new tcpls connection
-    pub fn new(conn_id: u32) -> TcplsConnection {
+    pub fn new(conn_id: u32, role: Role) -> TcplsConnection {
         let stream1 = TcplsStreamBuilder::new(0);
         let mut streams = HashMap::new();
         streams.insert(0, stream1.build());
@@ -58,6 +70,7 @@ impl TcplsConnection {
             snd_buf: Vec::new(), 
             highest_tls_seq:0, 
             ack_received: false,
+            role,
         }
     }
 
