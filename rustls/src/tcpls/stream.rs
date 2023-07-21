@@ -49,7 +49,7 @@ impl TcplsStream {
     pub fn create_data_frame(&mut self) -> Option<Vec<u8>> {
         let mut frame: Vec<u8> = Vec::new(); // TODO: decide if still local var or struct mmbr 
         let mut cp_len: u16 = MAX_STREAM_DATA_SIZE as u16;
-        let mut typ: u8 = 0x02;
+        let mut typ: u8 = constant::STREAM_FRAME;
 
         if self.snd_data.is_empty() {
             return None;
@@ -60,7 +60,7 @@ impl TcplsStream {
         } else {
             frame.extend_from_slice(&self.snd_data[self.offset as usize..]);
             cp_len = (self.snd_data.len() - self.offset as usize) as u16;
-            typ = 0x03;
+            typ = constant::STREAM_FRAME_FIN;
         }
 
         self.offset += cp_len as u64;
