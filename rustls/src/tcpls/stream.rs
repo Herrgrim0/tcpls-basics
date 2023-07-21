@@ -2,11 +2,10 @@
 use log::trace;
 
 /// Management of a TCPLS stream
-use crate::tcpls::convert;
+use crate::tcpls::utils::{*, constant::MAX_STREAM_DATA_SIZE};
 
 // Max size of a TLS record minus size of
 // a TCPLS headers for stream data frame (16 bytes)
-const MAX_DATA_SIZE: usize = usize::pow(2, 14) - 3325; // error when using write_tls with size above this value
 
 /// Manage a tcpls stream
 #[derive(Debug)]
@@ -33,12 +32,12 @@ impl TcplsStream {
     pub fn read_record(&mut self, new_data: &[u8]) -> usize {
         let mut cursor: usize = new_data.len();
 
-        let stream_offset: u64 = convert::slice_to_u64(&new_data[cursor-8..cursor]);
+        let stream_offset: u64 = conversion::slice_to_u64(&new_data[cursor-8..cursor]);
         cursor -=8;
 
         self.offset += stream_offset;
 
-        let stream_len: u16 = convert::slice_to_u16(&new_data[cursor-2..cursor]);
+        let stream_len: u16 = conversion::slice_to_u16(&new_data[cursor-2..cursor]);
         cursor -= 2;
         trace!("cursor: {}, stream_len: {}", cursor, stream_len);
         self.rcv_data.extend_from_slice(&new_data[cursor-stream_len as usize..cursor]);
@@ -49,15 +48,15 @@ impl TcplsStream {
     /// return a vec that fits in a TLS record
     pub fn create_data_frame(&mut self) -> Option<Vec<u8>> {
         let mut frame: Vec<u8> = Vec::new(); // TODO: decide if still local var or struct mmbr 
-        let mut cp_len: u16 = MAX_DATA_SIZE as u16;
+        let mut cp_len: u16 = MAX_STREAM_DATA_SIZE as u16;
         let mut typ: u8 = 0x02;
 
         if self.snd_data.is_empty() {
             return None;
         };
 
-        if self.snd_data[self.offset as usize..].len() >= MAX_DATA_SIZE {
-            frame.extend_from_slice(&self.snd_data[self.offset as usize..self.offset as usize+MAX_DATA_SIZE]);
+        if self.snd_data[self.offset as usize..].len() >= MAX_STREAM_DATA_SIZE {
+            frame.extend_from_slice(&self.snd_data[self.offset as usize..self.offset as usize+MAX_STREAM_DATA_SIZE]);
         } else {
             frame.extend_from_slice(&self.snd_data[self.offset as usize..]);
             cp_len = (self.snd_data.len() - self.offset as usize) as u16;

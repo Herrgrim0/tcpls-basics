@@ -7,25 +7,12 @@ pub mod error;
 pub mod stream;
 
 ///collection of function to transform bytes to int
-pub mod convert;
+pub mod utils;
 
 use log::trace;
 use crate::tcpls::error::Error;
 use crate::tcpls::stream::{TcplsStream, TcplsStreamBuilder};
-
-// minimum length of a tcpls stream frame containing a chunk of data of 1 byte
-const MAX_RECORD_SIZE: usize = usize::pow(2, 14) - 3325;
-
-const PADDING_FRAME: u8 = 0x00;
-const PING_FRAME: u8 = 0x01;
-const STREAM_FRAME: u8 = 0x02;
-const STREAM_FRAME_FIN: u8 = 0x03;
-const ACK_FRAME: u8 = 0x04;
-const NEW_TOKEN_FRAME: u8 = 0x05;
-const CONNECTION_RESET_FRAME: u8 = 0x06;
-const NEW_ADDRESS_FRAME: u8 = 0x07;
-const REMOVE_ADDRESS_FRAME: u8 = 0x08;
-const STREAM_CHANGE_FRAME: u8 = 0x09;
+use crate::tcpls::utils::{constant, conversion};
 
 /// Manage an underlying TCP/TLS connection
 /// and all the Tcpls features above it
@@ -53,6 +40,8 @@ pub struct TcplsConnection {
     //highest TLS record sequence for the ACK frame
     highest_tls_seq: u64,
 
+    ack_received: bool,
+
 }
 
 
@@ -68,6 +57,7 @@ impl TcplsConnection {
             _last_stream_id_created: 0, 
             snd_buf: Vec::new(), 
             highest_tls_seq:0, 
+            ack_received: false,
         }
     }
 
@@ -75,11 +65,11 @@ impl TcplsConnection {
     /// data to send
     pub fn process_w(&mut self) -> Option<Vec<u8>> {
         // application data
-        let mut record: Vec<u8> = Vec::with_capacity(MAX_RECORD_SIZE);
+        let mut record: Vec<u8> = Vec::with_capacity(constant::MAX_RECORD_SIZE);
 
         for stream in self.streams.values_mut() {
             trace!("stream: {}, len: {}, offset {}", stream.get_id(), stream.get_len(), stream.get_offset());
-            if !(record.len() < MAX_RECORD_SIZE) {
+            if !(record.len() < constant::MAX_RECORD_SIZE) {
                 break;
             }
 
@@ -89,8 +79,8 @@ impl TcplsConnection {
         }
 
         // control data
-        if record.len() < MAX_RECORD_SIZE {
-            let space_left = MAX_RECORD_SIZE - record.len();
+        if record.len() < constant::MAX_RECORD_SIZE {
+            let space_left = constant::MAX_RECORD_SIZE - record.len();
             let mut i: usize = 0;
             while i < space_left {
                 self.add_ping(&mut record);
@@ -108,7 +98,7 @@ impl TcplsConnection {
     // return the number of bytes read
     fn recv_stream(&mut self, payload: &[u8], mut offset: usize) -> usize {
 
-        let stream_id: u32 = convert::slice_to_u32(&payload[offset-4..offset]);
+        let stream_id: u32 = conversion::slice_to_u32(&payload[offset-4..offset]);
         offset-=4;
         if self.streams.contains_key(&stream_id) {
             let st = self.streams.get_mut(&stream_id).unwrap();
@@ -120,7 +110,7 @@ impl TcplsConnection {
 
     /// create a new stream to process data
     fn create_stream(&mut self, payload: &[u8], mut offset: usize) -> usize {
-        let new_stream_id: u32 = convert::slice_to_u32(&payload[offset-4..offset]);
+        let new_stream_id: u32 = conversion::slice_to_u32(&payload[offset-4..offset]);
         offset -= 4;
         let mut n_stream = TcplsStream::new(new_stream_id, Vec::new());
         let consummed = n_stream.read_record(&payload[..offset]);
@@ -161,11 +151,6 @@ impl TcplsConnection {
         self.conn_id
     }
 
-    /// send a ping
-    pub fn ping(&self) -> u8 {
-        PING_FRAME
-    }
-
     /// probe each stream to see if there is still 
     /// data to send
     pub fn has_data(&self) -> bool {
@@ -195,7 +180,7 @@ impl TcplsConnection {
 
         // safeguard because main loop doesn't handle the
         // first byte of the payload
-        if payload[0] == PING_FRAME {
+        if payload[0] == constant::PING_FRAME {
             trace!("Ping Frame received");
                 self.add_ack();
         }
@@ -206,28 +191,29 @@ impl TcplsConnection {
     fn process_frame(&mut self, payload: &Vec<u8>, i: usize) -> Result<usize, Error> {
         let mut consummed = 0;
         match payload[i] {
-            PADDING_FRAME => {
+            constant::PADDING_FRAME => {
                 trace!("Padding Frame received"); 
                 consummed += 1
             },
-            PING_FRAME => {
+            constant::PING_FRAME => {
                 trace!("Ping Frame received");
                 self.add_ack(); 
                 consummed = 1; 
             },
-            ACK_FRAME => {
+            constant::ACK_FRAME => {
                 trace!("Ack Frame received");
+                self.ack_received = true;
                 consummed = self.read_ack(payload, i)
             },
-            STREAM_FRAME | STREAM_FRAME_FIN => {
+            constant::STREAM_FRAME | constant::STREAM_FRAME_FIN => {
                 trace!("Stream frame received");
                 consummed += self.recv_stream(payload, i);
                 },
-            NEW_TOKEN_FRAME => todo!(),
-            CONNECTION_RESET_FRAME => todo!(),
-            NEW_ADDRESS_FRAME => todo!(),
-            REMOVE_ADDRESS_FRAME => todo!(),
-            STREAM_CHANGE_FRAME => todo!(),
+            constant::NEW_TOKEN_FRAME => todo!(),
+            constant::CONNECTION_RESET_FRAME => todo!(),
+            constant::NEW_ADDRESS_FRAME => todo!(),
+            constant::REMOVE_ADDRESS_FRAME => todo!(),
+            constant::STREAM_CHANGE_FRAME => todo!(),
             _ => {
                 trace!("Unknown tcpls type {}, index: {}", payload[i], i);
                 return Err(Error::UnknownTcplsType)
@@ -239,19 +225,19 @@ impl TcplsConnection {
 
     /// read a ping frame and respond with a Ack
     fn read_ack(&self, payload: &Vec<u8>, mut offset: usize) -> usize {
-        assert_eq!(payload[offset], ACK_FRAME);
+        assert_eq!(payload[offset], constant::ACK_FRAME);
         offset -= 1; // remove frame value
         let highest_tls_seq: u64;
         
-        let conn_id = convert::slice_to_u32(&payload[offset-4..offset]);
+        let conn_id = conversion::slice_to_u32(&payload[offset-4..offset]);
         offset -= 4;
 
         if offset < 8 {
             // to avoid attempt to subtract with overflow
             // because of index problem
-            highest_tls_seq = convert::slice_to_u64(&payload[0..offset+1]);
+            highest_tls_seq = conversion::slice_to_u64(&payload[0..offset+1]);
         } else {
-            highest_tls_seq = convert::slice_to_u64(&payload[offset-8..offset]);
+            highest_tls_seq = conversion::slice_to_u64(&payload[offset-8..offset]);
         }
 
         trace!("Ack frame received on conn: {}, highest tls seq: {}", conn_id, highest_tls_seq);
@@ -271,21 +257,38 @@ impl TcplsConnection {
     }
 
     fn add_ping(&mut self, record: &mut Vec<u8>) {
-        if record.len() < MAX_RECORD_SIZE {
-            record.push(PING_FRAME);
+        if record.len() < constant::MAX_RECORD_SIZE {
+            record.push(constant::PING_FRAME);
         }
     }
 
     fn add_ack(&mut self) {
-        if self.snd_buf.len() + 13 < MAX_RECORD_SIZE {
+        if self.snd_buf.len() + 13 < constant::MAX_RECORD_SIZE {
             self.snd_buf.extend_from_slice(&self.highest_tls_seq.to_be_bytes());
             self.snd_buf.extend_from_slice(&self.conn_id.to_be_bytes());
-            self.snd_buf.push(ACK_FRAME);
+            self.snd_buf.push(constant::ACK_FRAME);
         }
     }
 
     /// return data processed by a stream
     pub fn get_stream_data(&self) -> &[u8] {
         self.streams.get(&0).unwrap().get_stream_data()
+    }
+
+    /// display streams hashmap for debug purpose
+    pub fn dbg_streams(&self) {
+        for (k, v) in &self.streams {
+            trace!("{}, {}", k, v.get_len());
+        }
+    }
+
+    /// inverse ack_received member
+    pub fn inv_ack(&mut self) {
+        self.ack_received = !self.ack_received;
+    }
+
+    /// return the state of ack_received member
+    pub fn has_received_ack(&self) -> bool {
+        self.ack_received
     }
 }
