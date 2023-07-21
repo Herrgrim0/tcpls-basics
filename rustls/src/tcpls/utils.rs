@@ -22,7 +22,7 @@ pub(crate) mod conversion {
 /// All the useful constant for the TCPLS protocol
 /// i.e: frame type, max record size
 pub mod constant {
-    use crate::msgs::fragmenter::MAX_FRAGMENT_SIZE;
+    use crate::msgs::fragmenter::{MAX_FRAGMENT_SIZE, MAX_FRAGMENT_LEN};
 
     /// padding frame
     pub const PADDING_FRAME: u8 = 0x00;
@@ -37,8 +37,8 @@ pub mod constant {
     pub(crate) const REMOVE_ADDRESS_FRAME: u8 = 0x08;
     pub(crate) const STREAM_CHANGE_FRAME: u8 = 0x09;
 
-    pub(crate) const MAX_RECORD_SIZE: usize = MAX_FRAGMENT_SIZE;
-    pub(crate) const MAX_STREAM_DATA_SIZE: usize = MAX_FRAGMENT_SIZE - 15;
+    pub(crate) const MAX_RECORD_SIZE: usize = MAX_FRAGMENT_LEN;
+    pub(crate) const MAX_STREAM_DATA_SIZE: usize = MAX_FRAGMENT_LEN - 15;
 }
 
 
