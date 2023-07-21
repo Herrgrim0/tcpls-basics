@@ -201,7 +201,7 @@ impl TcplsConnection {
                 consummed = 1; 
             },
             constant::ACK_FRAME => {
-                trace!("Ack Frame received");
+                //trace!("Ack Frame received");
                 self.ack_received = true;
                 consummed = self.read_ack(payload, i)
             },
@@ -271,8 +271,12 @@ impl TcplsConnection {
     }
 
     /// return data processed by a stream
-    pub fn get_stream_data(&self) -> &[u8] {
-        self.streams.get(&0).unwrap().get_stream_data()
+    pub fn get_stream_data(&self, id: u32) -> Result<&[u8], Error> {
+        if self.streams.contains_key(&id) {
+            Ok(self.streams.get(&id).unwrap().get_stream_data())
+        } else {
+            Err(Error::UnknownTcplsType)
+        }
     }
 
     /// display streams hashmap for debug purpose
