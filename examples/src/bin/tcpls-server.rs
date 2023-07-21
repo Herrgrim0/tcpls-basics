@@ -274,10 +274,10 @@ impl OpenConnection {
                     .unwrap();
 
                 debug!("plaintext read {:?}", buf.len());
-                debug!("{:?}", &buf);
+                //debug!("{:?}", &buf);
 
                 let _ = self.tcpls.process_r(&buf);
-                let s = match std::str::from_utf8(self.tcpls.get_stream_data()) {
+                let _s = match std::str::from_utf8(self.tcpls.get_stream_data()) {
                     Ok(v) => v,
                     Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
                 };
