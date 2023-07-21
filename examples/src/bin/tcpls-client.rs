@@ -8,6 +8,7 @@ use std::time::Duration;
 use log::debug;
 use mio::net::TcpStream;
 use rustls::ClientConfig;
+use rustls::tcpls::Role;
 use rustls::tcpls::TcplsConnection;
 use rustls::tcpls::stream::TcplsStreamBuilder;
 use rustls::tcpls::utils::constant;
@@ -51,7 +52,7 @@ impl TlsClient {
             clean_closure: false,
             tls_cfg: cfg.clone(),
             tls_conn: rustls::ClientConnection::new(cfg, server_name).unwrap(),
-            tcpls_conn: TcplsConnection::new(0),
+            tcpls_conn: TcplsConnection::new(0, Role::Client),
         }
     }
 

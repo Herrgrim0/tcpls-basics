@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use mio::net::{TcpListener, TcpStream};
+use rustls::tcpls::Role;
 use rustls::tcpls::TcplsConnection;
 
 #[macro_use]
@@ -188,7 +189,7 @@ impl OpenConnection {
             back,
             sent_http_response: false,
             tcpls_enabled,
-            tcpls: TcplsConnection::new(0),
+            tcpls: TcplsConnection::new(0, Role::Server),
         }
     }
 
