@@ -10,6 +10,7 @@ use mio::net::TcpStream;
 use rustls::ClientConfig;
 use rustls::tcpls::TcplsConnection;
 use rustls::tcpls::stream::TcplsStreamBuilder;
+use rustls::tcpls::utils::constant;
 use std::fs::File;
 
 use std::fs;
@@ -62,7 +63,14 @@ impl TlsClient {
             self.do_read();
         }
 
-        if ev.is_writable() {
+        if ev.is_writable() && self.tls_conn.is_handshaking() {
+            debug!("Handshake");
+            let buf = [0x00];
+            self.tls_conn.writer().write(&buf).unwrap();
+            self.do_write();
+        }
+
+        if ev.is_writable() && !self.tls_conn.is_handshaking() {
             self.do_write();
         }
 
@@ -539,7 +547,7 @@ fn main() {
             stream_id += 2;
         }
         debug!("streams created");
-        
+        tlsclient.tcpls_conn.dbg_streams();
 
         // send file
 
@@ -564,29 +572,38 @@ fn main() {
 
     } else if args.flag_ping {
         // send a ping and wait an Ack over a TCPLS connection
-        let ping: Vec<u8> = vec![tlsclient.tcpls_conn.ping()];
+        let ping: [u8;1] = [constant::PING_FRAME];
+        let padding: [u8; 1] = [constant::PADDING_FRAME];
 
         let mut poll = mio::Poll::new().unwrap();
         let mut events = mio::Events::with_capacity(32);
         tlsclient.register(poll.registry());
-        
+        tlsclient.tcpls_conn.inv_ack();
         loop {
-            debug!("sending a ping {:?}", &ping);
-            tlsclient.tls_conn
-                    .writer()
-                    .write_all(&ping)
-                    .unwrap();
             poll.poll(&mut events, None).unwrap();
 
             for ev in events.iter() {
                 tlsclient.ready(ev);
                 tlsclient.reregister(poll.registry());
             }
+            
+            if !tlsclient.tls_conn.is_handshaking() && tlsclient.tcpls_conn.has_received_ack() {
+                debug!("sending a ping {:?}", &ping);
+                tlsclient.tls_conn
+                    .writer()
+                    .write(&ping)
+                    .unwrap();
+                
+                tlsclient.tcpls_conn.inv_ack(); // wait for next ack before resending a ping
+            }
             tlsclient.tcpls_conn.update_tls_seq(tlsclient.tls_conn.get_tls_record_seq());
             tlsclient.tcpls_conn.get_stream_data();
-            sleep(Duration::from_millis(1000));
+            tlsclient.tls_conn
+                    .writer()
+                    .write(&padding)
+                    .unwrap(); // Allow to avoid a double ping 
+            sleep(Duration::from_millis(2000));
         }
-
     } else {
         // send a string over a TCPLS connection
         let mut stdin = io::stdin();
