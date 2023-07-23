@@ -30,6 +30,7 @@ impl TcplsStream {
     /// stream id bytes have been removed
     /// return the number of bytes read
     pub fn read_record(&mut self, new_data: &[u8]) -> usize {
+        trace!("stream {} has a data frame", self.stream_id);
         let mut cursor: usize = new_data.len();
 
         let stream_offset: u64 = conversion::slice_to_u64(&new_data[cursor-8..cursor]);
@@ -55,7 +56,7 @@ impl TcplsStream {
             return None;
         };
 
-        if self.snd_data[self.offset as usize..].len() >= MAX_STREAM_DATA_SIZE {
+        if self.snd_data[self.offset as usize..].len() > MAX_STREAM_DATA_SIZE {
             frame.extend_from_slice(&self.snd_data[self.offset as usize..self.offset as usize+MAX_STREAM_DATA_SIZE]);
         } else {
             frame.extend_from_slice(&self.snd_data[self.offset as usize..]);
@@ -63,10 +64,9 @@ impl TcplsStream {
             typ = constant::STREAM_FRAME_FIN;
         }
 
-        self.offset += cp_len as u64;
-
         self.add_meta_data_to_frame(&mut frame, cp_len, typ);
-        trace!("stream {} created data frame", self.stream_id);
+        trace!("stream {} created data frame of len {}", self.stream_id, cp_len);
+        self.offset += cp_len as u64;
         
         Some(frame)
     }
