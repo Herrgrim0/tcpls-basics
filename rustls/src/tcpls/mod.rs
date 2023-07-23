@@ -9,6 +9,10 @@ pub mod stream;
 ///collection of function to transform bytes to int
 pub mod utils;
 
+/// run tests
+#[cfg(test)]
+pub mod tcpls_test;
+
 use log::trace;
 use crate::tcpls::error::Error;
 use crate::tcpls::stream::{TcplsStream, TcplsStreamBuilder};
@@ -307,5 +311,10 @@ impl TcplsConnection {
     /// return the state of ack_received member
     pub fn has_received_ack(&self) -> bool {
         self.ack_received
+    }
+
+    ///give the role of the TcplsConnection instance
+    pub fn get_role(self) -> Role {
+        self.role
     }
 }
