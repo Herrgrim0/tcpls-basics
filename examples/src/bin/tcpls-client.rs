@@ -66,6 +66,8 @@ impl TlsClient {
 
         if ev.is_writable() && self.tls_conn.is_handshaking() {
             debug!("Handshake ongoing!");
+            // send padding frame while making the hanshake to avoid
+            // blocking of connection.
             self.tls_conn.writer().write(&[constant::PADDING_FRAME]).unwrap();
             self.do_write();
         }
