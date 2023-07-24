@@ -18,11 +18,12 @@ pub struct TcplsStream {
 
 impl TcplsStream {
     /// create a new stream
-    pub fn new(stream_id: u32, r_data: Vec<u8>) -> TcplsStream {
-        TcplsStream {stream_id,
-                     offset: 0,
-                     snd_data: Vec::new(),
-                     rcv_data: r_data,
+    pub fn new(stream_id: u32, r_data: Vec<u8>) -> Self {
+        Self {
+            stream_id,
+            offset: 0,
+            snd_data: Vec::new(),
+            rcv_data: r_data,
         }
     }
 
@@ -40,7 +41,7 @@ impl TcplsStream {
 
         let stream_len: u16 = conversion::slice_to_u16(&new_data[cursor-2..cursor]);
         cursor -= 2;
-        trace!("cursor: {}, stream_len: {}", cursor, stream_len);
+        trace!("{} - cursor: {}, stream_len: {}", self.stream_id, cursor, stream_len);
         self.rcv_data.extend_from_slice(&new_data[cursor-stream_len as usize..cursor]);
 
         stream_len as usize + 10
@@ -80,7 +81,7 @@ impl TcplsStream {
 
     /// retrieve data to send
     pub fn get_data(&mut self, data: &[u8]) -> usize {
-        self.snd_data.extend_from_slice(&data);
+        self.snd_data.extend_from_slice(data);
 
         self.snd_data.len()
     }
@@ -94,7 +95,7 @@ impl TcplsStream {
     /// send. Compare offset and len of the buffer
     /// of data to send to do so.
     pub fn has_data_to_send(&self) -> bool {
-        return self.snd_data.len() > self.offset as usize
+        self.snd_data.len() > self.offset as usize
     }
 
     /// return id
@@ -123,8 +124,11 @@ pub struct TcplsStreamBuilder {
 
 impl TcplsStreamBuilder {
     /// create a new builder of stream
-    pub fn new(stream_id: u32) -> TcplsStreamBuilder{
-        TcplsStreamBuilder { stream_id, snd_data: Vec::new() }
+    pub fn new(stream_id: u32) -> Self {
+        Self { 
+            stream_id, 
+            snd_data: Vec::new() 
+        }
     }
 
     /// add data to the stream

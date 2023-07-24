@@ -64,11 +64,12 @@ pub struct TcplsConnection {
 impl TcplsConnection {
 
     /// create new tcpls connection
-    pub fn new(conn_id: u32, role: Role) -> TcplsConnection {
+    pub fn new(conn_id: u32, role: Role) -> Self {
         let stream1 = TcplsStreamBuilder::new(0);
         let mut streams = HashMap::new();
         streams.insert(0, stream1.build());
-        TcplsConnection { conn_id, 
+        Self { 
+            conn_id, 
             streams, 
             _last_stream_id_created: 0, 
             snd_buf: Vec::new(), 
@@ -86,7 +87,7 @@ impl TcplsConnection {
 
         for stream in self.streams.values_mut() {
             trace!("stream: {}, len: {}, offset {}", stream.get_id(), stream.get_len(), stream.get_offset());
-            if !(record.len() < constant::MAX_RECORD_SIZE) {
+            if record.len() >= constant::MAX_RECORD_SIZE {
                 break;
             }
 
@@ -188,7 +189,7 @@ impl TcplsConnection {
         while i > 0 {
             let consummed = self.process_frame(payload, i)?;
             if i > consummed {
-                i = i - consummed;
+                i -= consummed;
             } else {
                 i = 0;
             }
@@ -244,18 +245,17 @@ impl TcplsConnection {
     fn read_ack(&self, payload: &Vec<u8>, mut offset: usize) -> usize {
         assert_eq!(payload[offset], constant::ACK_FRAME);
         offset -= 1; // remove frame value
-        let highest_tls_seq: u64;
         
         let conn_id = conversion::slice_to_u32(&payload[offset-4..offset]);
         offset -= 4;
 
-        if offset < 8 {
+        let highest_tls_seq: u64 = if offset < 8 {
             // to avoid attempt to subtract with overflow
             // because of index problem
-            highest_tls_seq = conversion::slice_to_u64(&payload[0..offset+1]);
+            conversion::slice_to_u64(&payload[0..offset+1])
         } else {
-            highest_tls_seq = conversion::slice_to_u64(&payload[offset-8..offset]);
-        }
+            conversion::slice_to_u64(&payload[offset-8..offset])
+        };
 
         trace!("Ack frame received on conn: {}, highest tls seq: {}", conn_id, highest_tls_seq);
 
