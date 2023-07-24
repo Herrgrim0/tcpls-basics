@@ -1,5 +1,6 @@
 /// Handle errors of tcpls
 #[derive(Debug)]
+#[derive(PartialEq)]
 pub enum Error {
     /// The buffer has not enough place to accept a
     /// new TCPLS frame
@@ -10,4 +11,7 @@ pub enum Error {
     UnknownTcplsType,
     /// An erronous stream id has been given
     StreamNotFound,
+    /// when converting a slice of byte to an unsigned
+    /// of a certain size, the number of bytes given is wrong
+    BadSliceLength,
 }

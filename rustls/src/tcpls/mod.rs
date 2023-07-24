@@ -116,7 +116,8 @@ impl TcplsConnection {
     // return the number of bytes read
     fn recv_stream(&mut self, payload: &[u8], mut offset: usize) -> usize {
 
-        let stream_id: u32 = conversion::slice_to_u32(&payload[offset-4..offset]);
+        let stream_id: u32 = conversion::slice_to_u32(&payload[offset-4..offset])
+                                .expect("Failed to convert bytes");
         offset-=4;
         if self.streams.contains_key(&stream_id) {
             let st = self.streams.get_mut(&stream_id).unwrap();
@@ -128,7 +129,8 @@ impl TcplsConnection {
 
     /// create a new stream to process data
     fn create_stream(&mut self, payload: &[u8], mut offset: usize) -> usize {
-        let new_stream_id: u32 = conversion::slice_to_u32(&payload[offset-4..offset]);
+        let new_stream_id: u32 = conversion::slice_to_u32(&payload[offset-4..offset])
+                                    .expect("Failed to convert bytes");
         offset -= 4;
         let mut n_stream = TcplsStream::new(new_stream_id, Vec::new());
         let consummed = n_stream.read_record(&payload[..offset]);
@@ -246,15 +248,16 @@ impl TcplsConnection {
         assert_eq!(payload[offset], constant::ACK_FRAME);
         offset -= 1; // remove frame value
         
-        let conn_id = conversion::slice_to_u32(&payload[offset-4..offset]);
+        let conn_id = conversion::slice_to_u32(&payload[offset-4..offset])
+                                .expect("Failed to convert bytes");
         offset -= 4;
 
         let highest_tls_seq: u64 = if offset < 8 {
             // to avoid attempt to subtract with overflow
             // because of index problem
-            conversion::slice_to_u64(&payload[0..offset+1])
+            conversion::slice_to_u64(&payload[0..offset+1]).expect("Failed to convert bytes")
         } else {
-            conversion::slice_to_u64(&payload[offset-8..offset])
+            conversion::slice_to_u64(&payload[offset-8..offset]).expect("Failed to convert bytes")
         };
 
         trace!("Ack frame received on conn: {}, highest tls seq: {}", conn_id, highest_tls_seq);

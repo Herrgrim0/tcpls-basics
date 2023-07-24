@@ -15,9 +15,9 @@ fn test_slice_to_u16_small_value() {
     let slc_2 = [0x00_u8, 0x01];
     let slc_3 = u16::to_be_bytes(18904);
 
-    assert_eq!(conversion::slice_to_u16(&slc_1), u16::MIN);
-    assert_eq!(conversion::slice_to_u16(&slc_2), u16::MIN + 1);
-    assert_eq!(conversion::slice_to_u16(&slc_3), 18904_u16);
+    assert_eq!(conversion::slice_to_u16(&slc_1).unwrap(), u16::MIN);
+    assert_eq!(conversion::slice_to_u16(&slc_2).unwrap(), u16::MIN + 1);
+    assert_eq!(conversion::slice_to_u16(&slc_3).unwrap(), 18904_u16);
     
 }
 
@@ -27,9 +27,9 @@ fn test_slice_to_u16_big_value() {
     let slc_2 = [0xFF_u8, 0xFE];
     let slc_3 = u16::to_be_bytes(42503);
 
-    assert_eq!(conversion::slice_to_u16(&slc_1), u16::MAX);
-    assert_eq!(conversion::slice_to_u16(&slc_2), u16::MAX - 1);
-    assert_eq!(conversion::slice_to_u16(&slc_3), 42503_u16)
+    assert_eq!(conversion::slice_to_u16(&slc_1).unwrap(), u16::MAX);
+    assert_eq!(conversion::slice_to_u16(&slc_2).unwrap(), u16::MAX - 1);
+    assert_eq!(conversion::slice_to_u16(&slc_3).unwrap(), 42503_u16)
 }
 
 #[test]
@@ -39,9 +39,9 @@ fn test_slice_to_u32_small_value() {
     let slc_2 = [0x00_u8, 0x00, 0x00, 0x01];
     let slc_3 = u32::to_be_bytes(1775951801);
 
-    assert_eq!(conversion::slice_to_u32(&slc_1), u32::MIN);
-    assert_eq!(conversion::slice_to_u32(&slc_2), u32::MIN + 1);
-    assert_eq!(conversion::slice_to_u32(&slc_3), 1775951801_u32);
+    assert_eq!(conversion::slice_to_u32(&slc_1).unwrap(), u32::MIN);
+    assert_eq!(conversion::slice_to_u32(&slc_2).unwrap(), u32::MIN + 1);
+    assert_eq!(conversion::slice_to_u32(&slc_3).unwrap(), 1775951801_u32);
     
 }
 
@@ -51,9 +51,9 @@ fn test_slice_to_u32_big_value() {
     let slc_2 = [0xFF_u8, 0xFF, 0xFF, 0xFE];
     let slc_3 = u32::to_be_bytes(4294967295);
 
-    assert_eq!(conversion::slice_to_u32(&slc_1), u32::MAX);
-    assert_eq!(conversion::slice_to_u32(&slc_2), u32::MAX - 1);
-    assert_eq!(conversion::slice_to_u32(&slc_3), 4294967295_u32);
+    assert_eq!(conversion::slice_to_u32(&slc_1).unwrap(), u32::MAX);
+    assert_eq!(conversion::slice_to_u32(&slc_2).unwrap(), u32::MAX - 1);
+    assert_eq!(conversion::slice_to_u32(&slc_3).unwrap(), 4294967295_u32);
 }
 
 #[test]
@@ -63,9 +63,9 @@ fn test_slice_to_u64_small_value() {
     let slc_2 = [0x00_u8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01];
     let slc_3 = u64::to_be_bytes(172516785778717348);
 
-    assert_eq!(conversion::slice_to_u64(&slc_1), u64::MIN);
-    assert_eq!(conversion::slice_to_u64(&slc_2), u64::MIN + 1);
-    assert_eq!(conversion::slice_to_u64(&slc_3), 172516785778717348_u64);
+    assert_eq!(conversion::slice_to_u64(&slc_1).unwrap(), u64::MIN);
+    assert_eq!(conversion::slice_to_u64(&slc_2).unwrap(), u64::MIN + 1);
+    assert_eq!(conversion::slice_to_u64(&slc_3).unwrap(), 172516785778717348_u64);
     
 }
 
@@ -75,9 +75,9 @@ fn test_slice_to_u64_big_value() {
     let slc_2 = [0xFF_u8, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE];
     let slc_3 = u64::to_be_bytes(17733336027062709243);
 
-    assert_eq!(conversion::slice_to_u64(&slc_1), u64::MAX);
-    assert_eq!(conversion::slice_to_u64(&slc_2), u64::MAX - 1);
-    assert_eq!(conversion::slice_to_u64(&slc_3), 17733336027062709243_u64);
+    assert_eq!(conversion::slice_to_u64(&slc_1).unwrap(), u64::MAX);
+    assert_eq!(conversion::slice_to_u64(&slc_2).unwrap(), u64::MAX - 1);
+    assert_eq!(conversion::slice_to_u64(&slc_3).unwrap(), 17733336027062709243_u64);
 }
 
 #[test]

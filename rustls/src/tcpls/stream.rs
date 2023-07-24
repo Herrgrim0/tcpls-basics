@@ -34,12 +34,14 @@ impl TcplsStream {
         trace!("stream {} has a data frame", self.stream_id);
         let mut cursor: usize = new_data.len();
 
-        let stream_offset: u64 = conversion::slice_to_u64(&new_data[cursor-8..cursor]);
+        let stream_offset: u64 = conversion::slice_to_u64(&new_data[cursor-8..cursor])
+                                    .expect("Failed to convert bytes");
         cursor -=8;
 
         self.offset += stream_offset;
 
-        let stream_len: u16 = conversion::slice_to_u16(&new_data[cursor-2..cursor]);
+        let stream_len: u16 = conversion::slice_to_u16(&new_data[cursor-2..cursor])
+                                    .expect("Failed to convert bytes");
         cursor -= 2;
         trace!("{} - cursor: {}, stream_len: {}", self.stream_id, cursor, stream_len);
         self.rcv_data.extend_from_slice(&new_data[cursor-stream_len as usize..cursor]);
