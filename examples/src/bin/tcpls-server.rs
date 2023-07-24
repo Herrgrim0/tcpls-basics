@@ -76,7 +76,7 @@ impl TlsServer {
                     let token = mio::Token(self.next_id);
                     self.next_id += 1;
 
-                    let mut connection = OpenConnection::new(socket, token, mode, tls_conn, self.tcpls_enabled);
+                    let mut connection = OpenConnection::new(socket, token, mode, tls_conn);
                     connection.register(registry);
                     self.connections
                         .insert(token, connection);
@@ -140,7 +140,6 @@ struct OpenConnection {
     tls_conn: rustls::ServerConnection,
     back: Option<TcpStream>,
     sent_http_response: bool,
-    tcpls_enabled: bool,
     tcpls: TcplsConnection,
 }
 
@@ -177,7 +176,6 @@ impl OpenConnection {
         token: mio::Token,
         mode: ServerMode,
         tls_conn: rustls::ServerConnection,
-        tcpls_enabled: bool,
     ) -> Self {
         let back = open_back(&mode);
         Self {
@@ -189,7 +187,6 @@ impl OpenConnection {
             tls_conn,
             back,
             sent_http_response: false,
-            tcpls_enabled,
             tcpls: TcplsConnection::new(0, Role::Server),
         }
     }
@@ -432,7 +429,7 @@ impl OpenConnection {
 }
 
 const USAGE: &str = "
-Runs a TLS server on :PORT.  The default PORT is 443.
+Runs a TCPLS server on :PORT.  The default PORT is 443.
 
 `echo' mode means the server echoes received data on each connection.
 
@@ -480,7 +477,6 @@ Options:
     --verbose           Emit log output.
     --version, -v       Show tool version.
     --help, -h          Show this screen.
-    --tcpls             Enable a TCPLS connection.
 ";
 
 #[derive(Debug, Deserialize)]
@@ -500,7 +496,6 @@ struct Args {
     flag_resumption: bool,
     flag_tickets: bool,
     arg_fport: Option<u16>,
-    flag_tcpls: bool,
 }
 
 fn find_suite(name: &str) -> Option<rustls::SupportedCipherSuite> {
@@ -650,9 +645,8 @@ fn make_config(args: &Args) -> Arc<rustls::ServerConfig> {
         config.ticketer = rustls::Ticketer::new().unwrap();
     }
 
-    if args.flag_tcpls {
-        config.tcpls_enabled = true;
-    }
+
+    config.tcpls_enabled = true;
 
     config.alpn_protocols = args
         .flag_proto
@@ -699,10 +693,8 @@ fn main() {
 
     let mut tlsserv = TlsServer::new(listener, mode, config);
 
-    if args.flag_tcpls {
-        tlsserv.set_tcpls(true);
-    }
-    
+    tlsserv.set_tcpls(true);
+
     let mut events = mio::Events::with_capacity(256);
     loop {
         poll.poll(&mut events, None).unwrap();

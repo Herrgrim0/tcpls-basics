@@ -68,7 +68,7 @@ impl TlsClient {
             debug!("Handshake ongoing!");
             // send padding frame while making the hanshake to avoid
             // blocking of connection.
-            self.tls_conn.writer().write(&[constant::PADDING_FRAME]).unwrap();
+            self.tls_conn.writer().write_all(&[constant::PADDING_FRAME]).unwrap();
             self.do_write();
         }
 
@@ -177,10 +177,10 @@ impl TlsClient {
             }
         };
         io::stdout()
-            .write_all(&stream_data)
+            .write_all(stream_data)
             .unwrap();
 
-        println!("{}", std::str::from_utf8(&stream_data).unwrap());
+        println!("{}", std::str::from_utf8(stream_data).unwrap());
     }
 
     fn do_write(&mut self) {
@@ -241,7 +241,7 @@ impl io::Read for TlsClient {
 }
 
 const USAGE: &str = "
-Connects to the TLS server at hostname:PORT.  The default PORT
+Connects to the TCPLS server at hostname:PORT.  The default PORT
 is 443.  3 features are proposed default one is read the stdin until
 EOF, --ping send every interval a Ping frame and receive 
 an Ack frame.  --file transfer a file to the server /.
@@ -275,7 +275,6 @@ Options:
     --max-frag-size M   Limit outgoing messages to M bytes.
     --version, -v       Show tool version.
     --help, -h          Show this screen.
-    --tcpls             Enable a TCPLS connection.
 ";
 
 #[derive(Debug, Deserialize)]
@@ -295,7 +294,6 @@ struct Args {
     flag_auth_key: Option<String>,
     flag_auth_certs: Option<String>,
     arg_hostname: String,
-    flag_tcpls: bool,
 }
 
 // TODO: um, well, it turns out that openssl s_client/s_server
@@ -493,9 +491,8 @@ fn make_config(args: &Args) -> Arc<rustls::ClientConfig> {
         config.enable_sni = false;
     }
 
-    if args.flag_tcpls {
-        config.tcpls_enabled = true;
-    }
+    config.tcpls_enabled = true;
+
 
     config.alpn_protocols = args
         .flag_proto
@@ -532,7 +529,7 @@ fn ping_server(tlsclient: &mut TlsClient) -> ! {
             debug!("sending a ping {:?}", &ping);
             tlsclient.tls_conn
                 .writer()
-                .write(&ping)
+                .write_all(&ping)
                 .unwrap();
         
             tlsclient.tcpls_conn.inv_ack(); // wait for next ack before resending a ping
@@ -541,7 +538,7 @@ fn ping_server(tlsclient: &mut TlsClient) -> ! {
         //tlsclient.tcpls_conn.get_stream_data(0);
         tlsclient.tls_conn
                 .writer()
-                .write(&padding)
+                .write_all(&padding)
                 .unwrap(); // To avoid a double ping 
 
         sleep(Duration::from_millis(2000));
@@ -590,7 +587,7 @@ fn main() {
         };
         let filenames: Vec<&str> = raw_filenames.split(' ').collect();
         for filename in filenames {
-            let mut file = File::open(&filename).expect("Error while opening file");
+            let mut file = File::open(filename).expect("Error while opening file");
             let mut data: Vec<u8> = Vec::new();
             let _ = file.read_to_end(&mut data).expect("error while reading file");
             let mut n_stream = TcplsStreamBuilder::new(stream_id);
