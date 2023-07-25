@@ -26,7 +26,7 @@ use crate::vecbuf::ChunkVecBuffer;
 use std::collections::VecDeque;
 
 use std::fmt::Debug;
-use std::{io, vec};
+use std::io;
 use std::mem;
 use std::ops::{Deref, DerefMut};
 
