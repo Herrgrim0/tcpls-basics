@@ -585,6 +585,7 @@ fn main() {
             Some(x) => x,
             None => panic!("No file given!"),
         };
+        
         let filenames: Vec<&str> = raw_filenames.split(' ').collect();
         for filename in filenames {
             let mut file = File::open(filename).expect("Error while opening file");
@@ -607,7 +608,11 @@ fn main() {
         debug!("Sending file");
         loop {
             poll.poll(&mut events, None).unwrap();
-            tlsclient.send_data();
+            if !tlsclient.tls_conn.is_handshaking() {
+                tlsclient.send_data();
+            } else {
+                tlsclient.tls_conn.writer().write_all(&[constant::PING_FRAME]).expect("error while sending ping");
+            }
 
             for ev in events.iter() {
                 tlsclient.ready(ev);
