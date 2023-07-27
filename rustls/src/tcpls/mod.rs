@@ -118,10 +118,10 @@ impl TcplsConnection {
 
         let stream_id: u32 = conversion::slice_to_u32(&payload[offset-4..offset])
                                 .expect("Failed to convert bytes");
-        offset-=4;
+        offset -= 4;
         if self.streams.contains_key(&stream_id) {
             let st = self.streams.get_mut(&stream_id).unwrap();
-            st.read_record(&payload[..offset]) + 4
+            st.read_record(&payload[..offset]) + 4 // bytes removed from offset
         } else {
             self.create_stream(payload, offset)
         }
@@ -136,7 +136,7 @@ impl TcplsConnection {
         let consummed = n_stream.read_record(&payload[..offset]);
         self.streams.insert(new_stream_id, n_stream);
 
-        consummed + 4
+        consummed + 4 // bytes remove from offset
     }
 
     /// add a new stream to the current connection
@@ -213,21 +213,22 @@ impl TcplsConnection {
         match payload[i] {
             constant::PADDING_FRAME => {
                 trace!("Padding Frame received"); 
-                consummed += 1
+                consummed += 1;
             },
             constant::PING_FRAME => {
                 trace!("Ping Frame received");
                 self.add_ack(); 
-                consummed = 1; 
+                consummed += 1; 
             },
             constant::ACK_FRAME => {
                 //trace!("Ack Frame received");
                 self.ack_received = true;
-                consummed = self.read_ack(payload, i)
+                consummed = self.read_ack(payload, i);
             },
-            constant::STREAM_FRAME | constant::STREAM_FRAME_FIN => {
+            constant::STREAM_FRAME | 
+            constant::STREAM_FRAME_FIN => {
                 trace!("Stream frame received");
-                consummed += self.recv_stream(payload, i);
+                consummed += self.recv_stream(payload, i) + 1 // the type frame;
                 },
             constant::NEW_TOKEN_FRAME => todo!(),
             constant::CONNECTION_RESET_FRAME => todo!(),
@@ -245,8 +246,7 @@ impl TcplsConnection {
 
     /// read a ping frame and respond with a Ack
     fn read_ack(&self, payload: &Vec<u8>, mut offset: usize) -> usize {
-        assert_eq!(payload[offset], constant::ACK_FRAME);
-        offset -= 1; // remove frame value
+        //offset -= 1; // remove frame value
         
         let conn_id = conversion::slice_to_u32(&payload[offset-4..offset])
                                 .expect("Failed to convert bytes");
