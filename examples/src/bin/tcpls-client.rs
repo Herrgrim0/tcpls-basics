@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use log::debug;
 use mio::net::TcpStream;
-use rustls::ClientConfig;
+//use rustls::ClientConfig;
 use rustls::tcpls::Role;
 use rustls::tcpls::TcplsConnection;
 use rustls::tcpls::stream::TcplsStreamBuilder;
@@ -31,16 +31,16 @@ const CLIENT: mio::Token = mio::Token(0);
 
 /// This encapsulates the TCP-level connection, some connection
 /// state, and the underlying TLS-level session.
-struct TlsClient {
+struct TcplsClient {
     socket: TcpStream,
     closing: bool,
     clean_closure: bool,
     tls_conn: rustls::ClientConnection,
-    tls_cfg: Arc<ClientConfig>,
+    //tls_cfg: Arc<ClientConfig>,
     tcpls_conn: TcplsConnection,
 }
 
-impl TlsClient {
+impl TcplsClient {
     fn new(
         sock: TcpStream,
         server_name: rustls::ServerName,
@@ -50,7 +50,7 @@ impl TlsClient {
             socket: sock,
             closing: false,
             clean_closure: false,
-            tls_cfg: cfg.clone(),
+            //tls_cfg: cfg.clone(),
             tls_conn: rustls::ClientConnection::new(cfg, server_name).unwrap(),
             tcpls_conn: TcplsConnection::new(0, Role::Client),
         }
@@ -224,7 +224,7 @@ impl TlsClient {
         self.closing
     }
 }
-impl io::Write for TlsClient {
+impl io::Write for TcplsClient {
     fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
         self.tls_conn.writer().write(bytes)
     }
@@ -234,7 +234,7 @@ impl io::Write for TlsClient {
     }
 }
 
-impl io::Read for TlsClient {
+impl io::Read for TcplsClient {
     fn read(&mut self, bytes: &mut [u8]) -> io::Result<usize> {
         self.tls_conn.reader().read(bytes)
     }
@@ -508,7 +508,7 @@ fn make_config(args: &Args) -> Arc<rustls::ClientConfig> {
 }
 
 /// ping continuously the server running tcpls and wait for an ack
-fn ping_server(tlsclient: &mut TlsClient) -> ! {
+fn ping_server(tlsclient: &mut TcplsClient) -> ! {
     // send a ping and wait an Ack over a TCPLS connection
     let ping: [u8;1] = [constant::PING_FRAME];
     let padding: [u8; 1] = [constant::PADDING_FRAME];
@@ -574,7 +574,7 @@ fn main() {
         .try_into()
         .expect("invalid DNS name");
 
-    let mut tlsclient = TlsClient::new(sock, server_name, config);
+    let mut tlsclient = TcplsClient::new(sock, server_name, config);
 
     // Where serious things begin
 

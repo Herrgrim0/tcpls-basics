@@ -42,7 +42,7 @@ enum ServerMode {
 
 /// This binds together a TCP listening socket, some outstanding
 /// connections, and a TLS server configuration.
-struct TlsServer {
+struct TcplsServer {
     server: TcpListener,
     connections: HashMap<mio::Token, OpenConnection>,
     next_id: usize,
@@ -51,7 +51,7 @@ struct TlsServer {
     tcpls_enabled: bool,
 }
 
-impl TlsServer {
+impl TcplsServer {
     fn new(server: TcpListener, mode: ServerMode, cfg: Arc<rustls::ServerConfig>) -> Self {
         Self {
             server,
@@ -691,7 +691,7 @@ fn main() {
         ServerMode::Forward(args.arg_fport.expect("fport required"))
     };
 
-    let mut tlsserv = TlsServer::new(listener, mode, config);
+    let mut tlsserv = TcplsServer::new(listener, mode, config);
 
     tlsserv.set_tcpls(true);
 
