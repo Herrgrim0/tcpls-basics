@@ -2,7 +2,7 @@
 use log::trace;
 
 /// Management of a TCPLS stream
-use crate::tcpls::utils::{*, constant::MAX_STREAM_DATA_SIZE};
+use crate::tcpls::{utils::*, constant::MAX_STREAM_DATA_SIZE};
 
 // Max size of a TLS record minus size of
 // a TCPLS headers for stream data frame (16 bytes)
@@ -43,8 +43,15 @@ impl TcplsStream {
         let stream_len: u16 = conversion::slice_to_u16(&new_data[cursor-2..cursor])
                                     .expect("Failed to convert bytes");
         cursor -= 2;
-        trace!("{} - cursor: {}, stream_len: {}", self.stream_id, cursor, stream_len);
-        self.rcv_data.extend_from_slice(&new_data[cursor-stream_len as usize..cursor]);
+        trace!("{} - cursor: {}, stream_len: {}, offset: {}", self.stream_id, cursor, stream_len, self.offset);
+        
+        if stream_len as usize > cursor {
+            self.rcv_data.extend_from_slice(&new_data[0..cursor]);
+            trace!("CURSOR AND STREAM LENGTH DIVERGE!");
+            trace!("length received: {}", self.rcv_data.len());
+        } else {
+            self.rcv_data.extend_from_slice(&new_data[cursor-stream_len as usize..cursor]);
+        }
 
         stream_len as usize + 10
     }
@@ -79,6 +86,7 @@ impl TcplsStream {
         frame.extend_from_slice(&self.offset.to_be_bytes());
         frame.extend_from_slice(&self.stream_id.to_be_bytes());
         frame.push(type_value);
+        trace!("{:?}", &frame[frame.len()-15..frame.len()]);
     }
 
     /// retrieve data to send
