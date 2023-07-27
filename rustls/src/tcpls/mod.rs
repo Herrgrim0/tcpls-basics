@@ -113,6 +113,67 @@ impl TcplsConnection {
         }
     }
 
+    /// read a tls record and parse every tcpls frame in it
+    pub fn process_r(&mut self, payload: &Vec<u8>) -> Result<(), Error> {
+        // read buffer from the end for the 0-copy feature of tcpls
+
+        let mut i = payload.len() - 1;
+ 
+        while i > 0 {
+            let consummed = self.process_frame(payload, i)?;
+            if i > consummed {
+                i -= consummed;
+            } else {
+                i = 0;
+            }
+            
+        }
+
+        // safeguard because main loop doesn't handle the
+        // first byte of the payload
+        if payload[0] == constant::PING_FRAME {
+            trace!("Ping Frame received");
+                self.add_ack();
+        }
+        Ok(())
+    }
+
+    // match the payload with a possible frame and process it
+    fn process_frame(&mut self, payload: &Vec<u8>, i: usize) -> Result<usize, Error> {
+        let mut consummed = 0;
+        match payload[i] {
+            constant::PADDING_FRAME => {
+                trace!("Padding Frame received"); 
+                consummed += 1;
+            },
+            constant::PING_FRAME => {
+                trace!("Ping Frame received");
+                self.add_ack(); 
+                consummed += 1; 
+            },
+            constant::ACK_FRAME => {
+                //trace!("Ack Frame received");
+                self.ack_received = true;
+                consummed = self.read_ack(payload, i);
+            },
+            constant::STREAM_FRAME | 
+            constant::STREAM_FRAME_FIN => {
+                trace!("Stream frame received");
+                consummed += self.recv_stream(payload, i) + 1 // the type frame;
+                },
+            constant::NEW_TOKEN_FRAME => todo!(),
+            constant::CONNECTION_RESET_FRAME => todo!(),
+            constant::NEW_ADDRESS_FRAME => todo!(),
+            constant::REMOVE_ADDRESS_FRAME => todo!(),
+            constant::STREAM_CHANGE_FRAME => todo!(),
+            _ => {
+                trace!("Unknown tcpls type {}, index: {}", payload[i], i);
+                return Err(Error::UnknownTcplsType)
+            },
+        }
+
+        Ok(consummed)
+    }
     // return the number of bytes read
     fn recv_stream(&mut self, payload: &[u8], mut offset: usize) -> usize {
 
@@ -180,68 +241,6 @@ impl TcplsConnection {
         }
         trace!("{}", ans);
         ans
-    }
-
-    /// read a tls record and parse every tcpls frame in it
-    pub fn process_r(&mut self, payload: &Vec<u8>) -> Result<(), Error> {
-        // read buffer from the end for the 0-copy feature of tcpls
-
-        let mut i = payload.len() - 1;
- 
-        while i > 0 {
-            let consummed = self.process_frame(payload, i)?;
-            if i > consummed {
-                i -= consummed;
-            } else {
-                i = 0;
-            }
-            
-        }
-
-        // safeguard because main loop doesn't handle the
-        // first byte of the payload
-        if payload[0] == constant::PING_FRAME {
-            trace!("Ping Frame received");
-                self.add_ack();
-        }
-        Ok(())
-    }
-
-    // match the payload with a possible frame and process it
-    fn process_frame(&mut self, payload: &Vec<u8>, i: usize) -> Result<usize, Error> {
-        let mut consummed = 0;
-        match payload[i] {
-            constant::PADDING_FRAME => {
-                trace!("Padding Frame received"); 
-                consummed += 1;
-            },
-            constant::PING_FRAME => {
-                trace!("Ping Frame received");
-                self.add_ack(); 
-                consummed += 1; 
-            },
-            constant::ACK_FRAME => {
-                //trace!("Ack Frame received");
-                self.ack_received = true;
-                consummed = self.read_ack(payload, i);
-            },
-            constant::STREAM_FRAME | 
-            constant::STREAM_FRAME_FIN => {
-                trace!("Stream frame received");
-                consummed += self.recv_stream(payload, i) + 1 // the type frame;
-                },
-            constant::NEW_TOKEN_FRAME => todo!(),
-            constant::CONNECTION_RESET_FRAME => todo!(),
-            constant::NEW_ADDRESS_FRAME => todo!(),
-            constant::REMOVE_ADDRESS_FRAME => todo!(),
-            constant::STREAM_CHANGE_FRAME => todo!(),
-            _ => {
-                trace!("Unknown tcpls type {}, index: {}", payload[i], i);
-                return Err(Error::UnknownTcplsType)
-            },
-        }
-
-        Ok(consummed)
     }
 
     /// read a ping frame and respond with a Ack
