@@ -180,24 +180,11 @@ impl TcplsConnection {
         let stream_id: u32 = conversion::slice_to_u32(&payload[offset-4..offset])
                                 .expect("Failed to convert bytes");
         offset -= 4;
-        if self.streams.contains_key(&stream_id) {
-            let st = self.streams.get_mut(&stream_id).unwrap();
-            st.read_record(&payload[..offset]) + 4 // bytes removed from offset
-        } else {
-            self.create_stream(payload, offset)
-        }
-    }
 
-    /// create a new stream to process data
-    fn create_stream(&mut self, payload: &[u8], mut offset: usize) -> usize {
-        let new_stream_id: u32 = conversion::slice_to_u32(&payload[offset-4..offset])
-                                    .expect("Failed to convert bytes");
-        offset -= 4;
-        let mut n_stream = TcplsStream::new(new_stream_id, Vec::new());
-        let consummed = n_stream.read_record(&payload[..offset]);
-        self.streams.insert(new_stream_id, n_stream);
+        let st = self.streams.entry(stream_id)
+            .or_insert(TcplsStream::new(stream_id, Vec::new()));
 
-        consummed + 4 // bytes remove from offset
+        st.read_record(&payload[..offset]) + 4 // bytes removed from offset
     }
 
     /// add a new stream to the current connection
