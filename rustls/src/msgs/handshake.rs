@@ -204,13 +204,13 @@ impl TcplsExtension {
         self.payload.encode(bytes);
     }
 
-    fn read(typ: ExtensionType, r: &mut Reader) -> Self {
+    fn read(typ: ExtensionType, r: &mut Reader) -> Option<Self> {
         let payload: Payload;
         match typ {
             ExtensionType::TCPLS => {payload = Payload::read(r)},
             _ => {payload = Payload::read(r)},
         };
-        Self { typ, payload }
+        Some(Self { typ, payload })
     }
 }
 
@@ -705,7 +705,7 @@ impl Codec for ClientExtension {
                 Self::TransportParametersDraft(sub.rest().to_vec())
             }
             ExtensionType::EarlyData if !sub.any_left() => Self::EarlyData,
-            ExtensionType::TCPLS => Self::Tcpls(TcplsExtension::read(typ, &mut sub)),
+            ExtensionType::TCPLS => Self::Tcpls(TcplsExtension::read(typ, &mut sub)?),
             _ => Self::Unknown(UnknownExtension::read(typ, &mut sub)),
         };
 
@@ -855,8 +855,8 @@ impl Codec for ServerExtension {
             ExtensionType::TransportParametersDraft => {
                 Self::TransportParametersDraft(sub.rest().to_vec())
             }
-            ExtensionType::TCPLS => Self::Tcpls(TcplsExtension::read(typ, &mut sub)),
-            ExtensionType::TCPLS_TOKEN => Self::TcplsToken(TcplsExtension::read(typ, &mut sub)),
+            ExtensionType::TCPLS => Self::Tcpls(TcplsExtension::read(typ, &mut sub)?),
+            ExtensionType::TCPLS_TOKEN => Self::TcplsToken(TcplsExtension::read(typ, &mut sub)?),
             ExtensionType::EarlyData => Self::EarlyData,
             _ => Self::Unknown(UnknownExtension::read(typ, &mut sub)),
         };
