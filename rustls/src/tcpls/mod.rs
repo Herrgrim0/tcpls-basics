@@ -108,8 +108,8 @@ impl TcplsConnection {
 
         match record.len() {
             0 => None,
-            1 .. => Some(record),
-            _ => panic!("record creation shitted itself"),
+            1 ..=constant::MAX_RECORD_SIZE => Some(record),
+            _ => panic!("record creation failed"),
         }
     }
 
