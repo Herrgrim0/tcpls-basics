@@ -276,7 +276,7 @@ impl OpenConnection {
                 debug!("plaintext read {:?}", buf.len());
                 debug!("{:?}", &buf);
                 if self.tls_conn.client_accept_tcpls() && self.tcpls_enabled {
-                    dbg!("reading tcpls record");
+                    debug!("reading tcpls record");
                     let _ = self.tcpls.process_r(&buf);
                 }
                 let s = match std::str::from_utf8(&buf) {
