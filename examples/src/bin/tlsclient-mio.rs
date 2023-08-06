@@ -72,7 +72,7 @@ impl TlsClient {
         let len = rd.read_to_end(&mut buf)?;
         debug!("writing to buf");
         if self.tls_conn.is_ready_for_tcpls(&self.tls_cfg) {
-            self.tcpls_conn.get_data(&buf);
+            self.tcpls_conn.set_data(&buf);
             self.tls_conn.writer().write_all(&self.tcpls_conn.create_record()).unwrap();
         } else {
             self.tls_conn
