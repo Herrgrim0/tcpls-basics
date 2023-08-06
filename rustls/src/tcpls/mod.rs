@@ -46,24 +46,30 @@ pub struct TcplsConnection {
     streams: HashMap<u32,TcplsStream>,
     
     // remembering the last stream id given to avoir collision
-    _last_stream_id_created: u32,
+    last_stream_id_created: u32,
 
     // buffer to send data to the other party
     snd_buf: Vec<u8>, 
 
     //highest TLS record sequence for the ACK frame
-    highest_tls_seq: u64,
+    internal_highest_record_sequence: u64,
 
     ack_received: bool,
 
     role: Role,
+
+    // for demo purpose, keep the last stream updated
+    last_stream_processed: u32,
+
+    // keep track of the last ack received for demo purpose
+    highest_record_sequence_received: u64,
 
 }
 
 
 impl TcplsConnection {
 
-    /// create new tcpls connection
+    /// create new tcpls connection with an empty stream
     pub fn new(conn_id: u32, role: Role) -> Self {
         let stream1 = TcplsStreamBuilder::new(0);
         let mut streams = HashMap::new();
@@ -71,34 +77,37 @@ impl TcplsConnection {
         Self { 
             conn_id, 
             streams, 
-            _last_stream_id_created: 0, 
+            last_stream_id_created: 0, 
             snd_buf: Vec::new(), 
-            highest_tls_seq:0, 
+            internal_highest_record_sequence:0, 
             ack_received: false,
             role,
+            last_stream_processed: 0,
+            highest_record_sequence_received: 0,
         }
     }
 
-    /// process the application and the control
-    /// data to send
+    /// create record, a list of one or more TCPLS frame(s)
     pub fn process_w(&mut self) -> Option<Vec<u8>> {
         // application data
         let mut record: Vec<u8> = Vec::with_capacity(constant::MAX_RECORD_SIZE);
+        let mut space_left = constant::MAX_RECORD_SIZE;
 
         for stream in self.streams.values_mut() {
-            trace!("stream: {}, len: {}, offset {}", stream.get_id(), stream.get_len(), stream.get_offset());
+            trace!("stream: {}, len: {}, offset {}", stream.get_id(), stream.get_len_snd_buf(), stream.get_offset());
             if record.len() >= constant::MAX_RECORD_SIZE {
                 break;
+            } else {
+                space_left = constant::MAX_RECORD_SIZE - record.len();
             }
 
-            if stream.has_data_to_send() {
-                record.extend_from_slice(&stream.create_data_frame().unwrap_or_default());
+            if stream.has_data_to_send() && space_left > constant::MIN_STREAM_DATA_SIZE  {
+                record.extend_from_slice(&stream.create_data_frame(space_left).unwrap_or_default());
             }
         }
 
         // control data
         if record.len() < constant::MAX_RECORD_SIZE {
-            let space_left = constant::MAX_RECORD_SIZE - record.len();
             let mut i: usize = 0;
             while i < space_left {
                 self.add_ping(&mut record);
@@ -113,16 +122,16 @@ impl TcplsConnection {
         }
     }
 
-    /// read a tls record and parse every tcpls frame in it
+    /// read a tls record from end to start, parse every tcpls frame in it
     pub fn process_r(&mut self, payload: &Vec<u8>) -> Result<(), Error> {
         // read buffer from the end for the 0-copy feature of tcpls
 
         let mut i = payload.len() - 1;
  
         while i > 0 {
-            let consummed = self.process_frame(payload, i)?;
-            if i > consummed {
-                i -= consummed;
+            let consumed = self.process_frame(payload, i).expect("error while reading record");
+            if i > consumed {
+                i -= consumed;
             } else {
                 i = 0;
             }
@@ -138,41 +147,42 @@ impl TcplsConnection {
         Ok(())
     }
 
-    // match the payload with a possible frame and process it
+    // Match the tcpls frame with the last byte of the payload.
+    // This byte represent the value of a frame type.
     fn process_frame(&mut self, payload: &Vec<u8>, i: usize) -> Result<usize, Error> {
-        let mut consummed = 0;
+        let mut consumed = 0;
         match payload[i] {
             constant::PADDING_FRAME => {
                 trace!("Padding Frame received"); 
-                consummed += 1;
+                consumed += 1;
             },
             constant::PING_FRAME => {
                 trace!("Ping Frame received");
                 self.add_ack(); 
-                consummed += 1; 
+                consumed += 1; 
             },
             constant::ACK_FRAME => {
                 //trace!("Ack Frame received");
                 self.ack_received = true;
-                consummed = self.read_ack(payload, i);
+                consumed = self.read_ack(payload, i);
             },
             constant::STREAM_FRAME | 
             constant::STREAM_FRAME_FIN => {
                 trace!("Stream frame received");
-                consummed += self.recv_stream(payload, i) + 1 // the type frame;
+                consumed += self.recv_stream(payload, i) + 1 // the type frame;
                 },
-            constant::NEW_TOKEN_FRAME => todo!(),
-            constant::CONNECTION_RESET_FRAME => todo!(),
-            constant::NEW_ADDRESS_FRAME => todo!(),
-            constant::REMOVE_ADDRESS_FRAME => todo!(),
-            constant::STREAM_CHANGE_FRAME => todo!(),
+            constant::NEW_TOKEN_FRAME => unreachable!(),
+            constant::CONNECTION_RESET_FRAME => unreachable!(),
+            constant::NEW_ADDRESS_FRAME => unreachable!(),
+            constant::REMOVE_ADDRESS_FRAME => unreachable!(),
+            constant::STREAM_CHANGE_FRAME => unreachable!(),
             _ => {
                 trace!("Unknown tcpls type {}, index: {}", payload[i], i);
                 return Err(Error::UnknownTcplsType)
             },
         }
 
-        Ok(consummed)
+        Ok(consumed)
     }
     // return the number of bytes read
     fn recv_stream(&mut self, payload: &[u8], mut offset: usize) -> usize {
@@ -180,10 +190,10 @@ impl TcplsConnection {
         let stream_id: u32 = conversion::slice_to_u32(&payload[offset-4..offset])
                                 .expect("Failed to convert bytes");
         offset -= 4;
-
         let st = self.streams.entry(stream_id)
             .or_insert(TcplsStream::new(stream_id, Vec::new()));
 
+        self.last_stream_processed = stream_id;
         st.read_record(&payload[..offset]) + 4 // bytes removed from offset
     }
 
@@ -192,11 +202,12 @@ impl TcplsConnection {
     /// the TcplsStreamBuilder
     pub fn add_stream(&mut self, n_stream: TcplsStream, id: u32) {
         self.streams.insert(id, n_stream);
+        self.last_stream_id_created = id;
     }
 
     /// gather all tcpls frames to create a record transmitted to tls
     pub fn create_record(&mut self) -> Vec<u8>{
-        let mut record: Vec<u8> =  match self.streams.get_mut(&0).unwrap().create_data_frame() {
+        let mut record: Vec<u8> =  match self.streams.get_mut(&0).unwrap().create_data_frame(constant::MAX_RECORD_SIZE) {
             Some(frame) => frame,
             None => vec![],
         };
@@ -231,7 +242,7 @@ impl TcplsConnection {
     }
 
     /// read a ping frame and respond with a Ack
-    fn read_ack(&self, payload: &Vec<u8>, mut offset: usize) -> usize {
+    fn read_ack(&mut self, payload: &Vec<u8>, mut offset: usize) -> usize {
         //offset -= 1; // remove frame value
         
         let conn_id = conversion::slice_to_u32(&payload[offset-4..offset])
@@ -248,16 +259,23 @@ impl TcplsConnection {
 
         trace!("Ack frame received on conn: {}, highest tls seq: {}", conn_id, highest_tls_seq);
 
+        self.highest_record_sequence_received = highest_tls_seq;
         13 // len of an ACK frame
     }
 
     /// update the highest tls seq, mainly for the ack
     pub fn update_tls_seq(&mut self, tls_seq: u64) {
-        self.highest_tls_seq = tls_seq;
+        self.internal_highest_record_sequence = tls_seq;
+    }
+
+    /// return the highest record sequence of the
+    /// underlying tls connection
+    pub fn get_highest_tls_record_seq(&self) -> u64 {
+        self.internal_highest_record_sequence
     }
 
     /// fill a stream w/ data to send
-    pub fn get_data(&mut self, data: &[u8]) {
+    pub fn set_data(&mut self, data: &[u8]) {
         //self.streams.get(&0).unwrap().get_data(data);
         self.streams.get_mut(&0).unwrap().get_data(data);
     }
@@ -268,9 +286,10 @@ impl TcplsConnection {
         }
     }
 
-    fn add_ack(&mut self) {
+    /// add an ACK frame in the sending buffer.
+    pub fn add_ack(&mut self) {
         if self.snd_buf.len() + 13 < constant::MAX_RECORD_SIZE {
-            self.snd_buf.extend_from_slice(&self.highest_tls_seq.to_be_bytes());
+            self.snd_buf.extend_from_slice(&self.internal_highest_record_sequence.to_be_bytes());
             self.snd_buf.extend_from_slice(&self.conn_id.to_be_bytes());
             self.snd_buf.push(constant::ACK_FRAME);
         }
@@ -281,14 +300,21 @@ impl TcplsConnection {
         if self.streams.contains_key(&id) {
             Ok(self.streams.get(&id).unwrap().get_stream_data())
         } else {
-            Err(Error::UnknownTcplsType)
+            Err(Error::StreamNotFound)
         }
+    }
+
+    /// add data to send to the last stream created
+    pub fn set_stream_data(&mut self, data: &[u8]) {
+        self.streams.get_mut(&self.last_stream_id_created)
+                    .unwrap()
+                    .add_data_to_send(data);
     }
 
     /// display streams hashmap for debug purpose
     pub fn dbg_streams(&self) {
         for (k, v) in &self.streams {
-            trace!("{}, {}", k, v.get_len());
+            trace!("{}, {}", k, v.get_len_snd_buf());
         }
     }
 
@@ -300,6 +326,44 @@ impl TcplsConnection {
     /// return the state of ack_received member
     pub fn has_received_ack(&self) -> bool {
         self.ack_received
+    }
+
+    /// return a string with info about last stream processed
+    pub fn get_last_stream_processed_info(&self) -> String {
+        let stream = self.streams.get(&self.last_stream_processed).expect("Failed to get Stream");
+        format!("Stream ID: {}
+                  offset: {}
+                  current length: {}", 
+                stream.get_id(), stream.get_offset(), stream.get_len_recv_buf())
+    }
+
+    /// return highest record sequence received in a string
+    pub fn get_last_ack_info(&self) -> String {
+        format!("Highest record sequence received: {}", self.highest_record_sequence_received)
+    }
+
+    /// return a string with the info of each stream,
+    /// its id and the data it received.
+    pub fn get_streams_received_info(&self) -> String {
+        let mut info = String::new();
+        for stream in self.streams.values() {
+            info.push_str(&format!("\nStream {} received {} bytes.\n", 
+                                          stream.get_id(),
+                                          stream.get_len_recv_buf()))
+        }
+        info
+    }
+
+    /// return a string with the info of each stream,
+    /// its id and the data it sent.
+    pub fn get_streams_sent_info(&self) -> String {
+        let mut info = String::new();
+        for stream in self.streams.values() {
+            info.push_str(&format!("\nStream {} received {} bytes.\n", 
+                                          stream.get_id(),
+                                          stream.get_len_snd_buf()))
+        }
+        info
     }
 
     ///give the role of the TcplsConnection instance
