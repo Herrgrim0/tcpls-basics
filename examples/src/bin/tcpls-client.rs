@@ -1,10 +1,9 @@
+
 /// Simplified version of tlsclient-mio
 /// to show tcpls features
 
-use std::thread::sleep;
 use std::process;
 use std::sync::Arc;
-use std::time::Duration;
 use log::debug;
 use mio::net::TcpStream;
 //use rustls::ClientConfig;
@@ -19,6 +18,7 @@ use std::io;
 use std::io::{BufReader, Read, Write};
 use std::net::SocketAddr;
 use std::str;
+use chrono;
 
 #[macro_use]
 extern crate serde_derive;
@@ -29,6 +29,26 @@ use rustls::{OwnedTrustAnchor, RootCertStore};
 
 const CLIENT: mio::Token = mio::Token(0);
 
+#[cfg(not(feature = "demo"))]
+macro_rules! demo_println {
+    ($($arg:tt)*) => {};
+}
+
+#[cfg(feature = "demo")]
+macro_rules! demo_println {
+    ($($arg:tt)*) => {
+        let timestamp = chrono::Local::now();
+        println!("[{}] {}", timestamp.format("%H:%M:%S%.6f"), format_args!($($arg)*));
+    };
+}
+
+#[derive(PartialEq)]
+enum Mode {
+    Default,
+    Ping,
+    Streams,
+}
+
 /// This encapsulates the TCP-level connection, some connection
 /// state, and the underlying TLS-level session.
 struct TcplsClient {
@@ -37,7 +57,8 @@ struct TcplsClient {
     clean_closure: bool,
     tls_conn: rustls::ClientConnection,
     //tls_cfg: Arc<ClientConfig>,
-    tcpls_conn: TcplsConnection,
+    tcpls: TcplsConnection,
+    mode: Mode,
 }
 
 impl TcplsClient {
@@ -52,14 +73,19 @@ impl TcplsClient {
             clean_closure: false,
             //tls_cfg: cfg.clone(),
             tls_conn: rustls::ClientConnection::new(cfg, server_name).unwrap(),
-            tcpls_conn: TcplsConnection::new(0, Role::Client),
+            tcpls: TcplsConnection::new(0, Role::Client),
+            mode: Mode::Default,
         }
+    }
+
+    /// change mode of the client
+    pub fn set_mode(&mut self, mode: Mode) {
+        self.mode = mode;
     }
 
     /// Handles events sent to the TlsClient by mio::Poll
     fn ready(&mut self, ev: &mio::event::Event) {
         assert_eq!(ev.token(), CLIENT);
-
         if ev.is_readable() {
             self.do_read();
         }
@@ -85,24 +111,27 @@ impl TcplsClient {
     fn read_source_to_end(&mut self, rd: &mut dyn io::Read) -> io::Result<usize> {
         let mut buf = Vec::new();
         let len = rd.read_to_end(&mut buf)?;
-        self.tcpls_conn.get_data(&buf);
+        self.tcpls.set_data(&buf);
+        demo_println!("sending {}", std::str::from_utf8(&buf).expect("failed to read input data"));
         self.tls_conn
             .writer()
-            .write_all(&self.tcpls_conn.create_record())
+            .write_all(&self.tcpls.create_record())
             .unwrap();
 
         Ok(len)
     }
 
     fn send_data(&mut self) {
-        if self.tcpls_conn.has_data() {
-            let data = self.tcpls_conn.process_w().unwrap();
+        if self.tcpls.has_data() {
+            let data = self.tcpls.process_w().unwrap();
             debug!("data len: {}", data.len());
             debug!("sending data");
+            demo_println!("Sending record of len {}", data.len());
+            println!("last frame of the record: {}",data[data.len()-1]);
             self.tls_conn
             .writer()
             .write(&data).unwrap();
-        }    
+        }
     }
 
     /// We're ready to do a read.
@@ -154,9 +183,18 @@ impl TcplsClient {
                 .read_exact(&mut plaintext)
                 .unwrap();
             
-            let _ = self.tcpls_conn.process_r(&plaintext);
+            let _ = self.tcpls.process_r(&plaintext);
             //println!("{}\n", self.tcpls_conn.get_stream_data());
-            self.print_tcpls_stream(0);
+            match self.mode {
+                Mode::Default => {
+                    let buf = self.tcpls.get_stream_data(0).expect("Failed to read TCPLS Stream");
+                    demo_println!("received: {}", std::str::from_utf8(&buf).expect("Failed to read utf-8 sequence"));
+                },
+                Mode::Streams | Mode::Ping => {
+                    demo_println!("Ack received\n{}", self.tcpls.get_last_ack_info());
+                    
+                },
+            }
         }
 
         // If wethat fails, the peer might have started a clean TLS-level
@@ -168,14 +206,16 @@ impl TcplsClient {
     }
 
     /// print the data received by a stream with the given id
-    fn print_tcpls_stream(&mut self, id: u32) {
-        let stream_data = match self.tcpls_conn.get_stream_data(id) {
+    fn _print_tcpls_stream(&mut self, id: u32) {
+        let stream_data = match self.tcpls.get_stream_data(id) {
             Ok(data) => data,
             Err(err) => {
                 println!("TCPLS Error while reading data: {:?}", err);
                 return;
             }
         };
+        demo_println!("{}", std::str::from_utf8(stream_data).unwrap());
+        
         io::stdout()
             .write_all(stream_data)
             .unwrap();
@@ -257,7 +297,7 @@ Usage:
 Options:
     -p, --port PORT     Connect to PORT [default: 443].
     --file FILES        Send FILES to the server (if multiple files given. put them quoted and separated by a space).
-    --ping              ping the server and wait for an ack.
+    --ping              ping the server and wait for an ack 10 times.
     --cafile CAFILE     Read root certificates from CAFILE.
     --auth-key KEY      Read client authentication key from KEY.
     --auth-certs CERTS  Read client authentication certificates from CERTS.
@@ -508,16 +548,18 @@ fn make_config(args: &Args) -> Arc<rustls::ClientConfig> {
 }
 
 /// ping continuously the server running tcpls and wait for an ack
-fn ping_server(tlsclient: &mut TcplsClient) -> ! {
+fn ping_server(tlsclient: &mut TcplsClient) {
     // send a ping and wait an Ack over a TCPLS connection
+    let mut index = 0;
+    tlsclient.set_mode(Mode::Ping);
     let ping: [u8;1] = [constant::PING_FRAME];
     let padding: [u8; 1] = [constant::PADDING_FRAME];
 
     let mut poll = mio::Poll::new().unwrap();
     let mut events = mio::Events::with_capacity(32);
     tlsclient.register(poll.registry());
-    tlsclient.tcpls_conn.inv_ack();
-    loop {
+    tlsclient.tcpls.inv_ack();
+    while index < 10 {
         poll.poll(&mut events, None).unwrap();
 
         for ev in events.iter() {
@@ -525,29 +567,35 @@ fn ping_server(tlsclient: &mut TcplsClient) -> ! {
             tlsclient.reregister(poll.registry());
         }
     
-        if !tlsclient.tls_conn.is_handshaking() && tlsclient.tcpls_conn.has_received_ack() {
+        if !tlsclient.tls_conn.is_handshaking() && tlsclient.tcpls.has_received_ack() {
             debug!("sending a ping {:?}", &ping);
+            demo_println!("Sending a Ping");
             tlsclient.tls_conn
                 .writer()
                 .write_all(&ping)
                 .unwrap();
         
-            tlsclient.tcpls_conn.inv_ack(); // wait for next ack before resending a ping
+            tlsclient.tcpls.inv_ack(); // wait for next ack before resending a ping
+            index += 1;
         }
-        tlsclient.tcpls_conn.update_tls_seq(tlsclient.tls_conn.get_tls_record_seq());
-        //tlsclient.tcpls_conn.get_stream_data(0);
+        tlsclient.tcpls.update_tls_seq(tlsclient.tls_conn.get_tls_record_seq());
+
         tlsclient.tls_conn
                 .writer()
                 .write_all(&padding)
                 .unwrap(); // To avoid a double ping 
 
-        sleep(Duration::from_millis(2000));
     }
+
+    demo_println!("10 ping send");
+    process::exit(if tlsclient.clean_closure { 0 } else { 1 });
+    
 }
 
 /// Parse some arguments, then make a TLS client connection
 /// somewhere.
 fn main() {
+    demo_println!("Demo mode enabled");
     let version = env!("CARGO_PKG_NAME").to_string() + ", version: " + env!("CARGO_PKG_VERSION");
 
     let args: Args = Docopt::new(USAGE)
@@ -580,6 +628,8 @@ fn main() {
 
     if args.flag_file.is_some() {
         // send a file over a TCPLS connection
+        tlsclient.set_mode(Mode::Streams);
+        demo_println!("Feature streams enabled");
         let mut stream_id = 0;
         let raw_filenames = match args.flag_file {
             Some(x) => x,
@@ -588,16 +638,17 @@ fn main() {
         
         let filenames: Vec<&str> = raw_filenames.split(' ').collect();
         for filename in filenames {
+            demo_println!("giving stream {stream_id} to file: {filename}");
             let mut file = File::open(filename).expect("Error while opening file");
             let mut data: Vec<u8> = Vec::new();
             let _ = file.read_to_end(&mut data).expect("error while reading file");
             let mut n_stream = TcplsStreamBuilder::new(stream_id);
             n_stream.add_data(&data);
-            tlsclient.tcpls_conn.add_stream(n_stream.build(), stream_id);
+            tlsclient.tcpls.add_stream(n_stream.build(), stream_id);
             stream_id += 2;
         }
         debug!("streams created");
-        tlsclient.tcpls_conn.dbg_streams();
+        tlsclient.tcpls.dbg_streams();
 
         // send file
 
@@ -611,21 +662,28 @@ fn main() {
             if !tlsclient.tls_conn.is_handshaking() {
                 tlsclient.send_data();
             } else {
-                tlsclient.tls_conn.writer().write_all(&[constant::PING_FRAME]).expect("error while sending ping");
+                tlsclient.tls_conn.writer().write_all(&[constant::PING_FRAME])
+                                        .expect("error while sending ping");
             }
 
             for ev in events.iter() {
                 tlsclient.ready(ev);
                 tlsclient.reregister(poll.registry());
             }
-            tlsclient.tcpls_conn.update_tls_seq(tlsclient.tls_conn.get_tls_record_seq());
+            tlsclient.tcpls.update_tls_seq(tlsclient.tls_conn.get_tls_record_seq());
+            
+            if !tlsclient.tcpls.has_data() {
+                demo_println!("All data send");
+                demo_println!("{}", tlsclient.tcpls.get_streams_sent_info());
+                // process::exit(if tlsclient.clean_closure { 0 } else { 1 });
+            }
         }
 
-        //TODO: send the file via TCPLS and receive it back
-
     } else if args.flag_ping {
+        demo_println!("Feature Ping enabled");
         ping_server(&mut tlsclient);
     } else {
+        demo_println!("Default feature enabled");
         // send a string over a TCPLS connection
         let mut stdin = io::stdin();
 
@@ -641,7 +699,7 @@ fn main() {
                 tlsclient.ready(ev);
                 tlsclient.reregister(poll.registry());
             }
-            tlsclient.tcpls_conn.update_tls_seq(tlsclient.tls_conn.get_tls_record_seq());
+            tlsclient.tcpls.update_tls_seq(tlsclient.tls_conn.get_tls_record_seq());
         }
     }
 }
