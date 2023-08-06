@@ -2,7 +2,7 @@
 use log::trace;
 
 /// Management of a TCPLS stream
-use crate::tcpls::{utils::*, constant::MAX_STREAM_DATA_SIZE};
+use crate::tcpls::utils::*;
 
 // Max size of a TLS record minus size of
 // a TCPLS headers for stream data frame (16 bytes)
@@ -47,7 +47,6 @@ impl TcplsStream {
         
         if stream_len as usize > cursor {
             self.rcv_data.extend_from_slice(&new_data[0..cursor]);
-            trace!("CURSOR AND STREAM LENGTH DIVERGE!");
             trace!("length received: {}", self.rcv_data.len());
         } else {
             self.rcv_data.extend_from_slice(&new_data[cursor-stream_len as usize..cursor]);
@@ -57,26 +56,27 @@ impl TcplsStream {
     }
 
     /// return a vec that fits in a TLS record
-    pub fn create_data_frame(&mut self) -> Option<Vec<u8>> {
-        let mut frame: Vec<u8> = Vec::new(); // TODO: decide if still local var or struct mmbr 
-        let mut cp_len: u16 = MAX_STREAM_DATA_SIZE as u16;
+    pub fn create_data_frame(&mut self, max_size: usize) -> Option<Vec<u8>> {
+        let mut frame: Vec<u8> = Vec::new(); 
         let mut typ: u8 = constant::STREAM_FRAME;
 
         if self.snd_data.is_empty() {
             return None;
         };
 
-        if self.snd_data[self.offset as usize..].len() > MAX_STREAM_DATA_SIZE {
-            frame.extend_from_slice(&self.snd_data[self.offset as usize..self.offset as usize+MAX_STREAM_DATA_SIZE]);
+        if self.snd_data[self.offset as usize..].len() >= max_size {
+            let data_size = self.offset as usize + max_size - constant::MIN_STREAM_DATA_SIZE;
+            frame.extend_from_slice(&self.snd_data[self.offset as usize..data_size]);
         } else {
             frame.extend_from_slice(&self.snd_data[self.offset as usize..]);
-            cp_len = (self.snd_data.len() - self.offset as usize) as u16;
             typ = constant::STREAM_FRAME_FIN;
         }
-
+        
+        let cp_len = frame.len() as u16;
         self.add_meta_data_to_frame(&mut frame, cp_len, typ);
-        trace!("stream {} created data frame of len {}", self.stream_id, cp_len);
         self.offset += cp_len as u64;
+
+        trace!("stream {} created data frame of len {}", self.stream_id, cp_len);
         
         Some(frame)
     }
@@ -101,6 +101,12 @@ impl TcplsStream {
         &self.rcv_data
     }
 
+    /// add a slice of data to the sending buffer of the
+    /// stream
+    pub fn add_data_to_send(&mut self, data: &[u8]) {
+        self.snd_data.extend_from_slice(data);
+    }
+
     /// return true if there is still data to
     /// send. Compare offset and len of the buffer
     /// of data to send to do so.
@@ -113,9 +119,16 @@ impl TcplsStream {
         self.stream_id
     }
 
-    /// return len data to send
-    pub fn get_len(&self) -> usize {
+    /// return length of the buffer
+    /// that send data
+    pub fn get_len_snd_buf(&self) -> usize {
         self.snd_data.len()
+    }
+    
+    /// return length of the buffer
+    /// that received data
+    pub fn get_len_recv_buf(&self) -> usize {
+        self.rcv_data.len()
     }
 
     /// return current offset
