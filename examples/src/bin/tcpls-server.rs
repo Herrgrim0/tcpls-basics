@@ -26,8 +26,21 @@ use rustls::{self, RootCertStore};
 // Token for our listening socket.
 const LISTENER: mio::Token = mio::Token(0);
 
+#[cfg(not(feature = "demo"))]
+macro_rules! demo_println {
+    ($($arg:tt)*) => {};
+}
+
+#[cfg(feature = "demo")]
+macro_rules! demo_println {
+    ($($arg:tt)*) => {
+        let timestamp = chrono::Local::now();
+        println!("[{}] {}", timestamp.format("%H:%M:%S%.6f"), format_args!($($arg)*));
+    };
+}
+
 // Which mode the server operates in.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 enum ServerMode {
     /// Write back received bytes
     Echo,
@@ -38,6 +51,10 @@ enum ServerMode {
 
     /// Forward traffic to/from given port on localhost.
     Forward(u16),
+
+    /// Gather data send by a client
+    /// feature for TCPLS
+    Receive,
 }
 
 /// This binds together a TCP listening socket, some outstanding
@@ -207,6 +224,8 @@ impl OpenConnection {
         }
 
         if self.closing {
+            demo_println!("connection shutdown");
+            demo_println!("{}", self.tcpls.get_streams_received_info());
             let _ = self
                 .socket
                 .shutdown(net::Shutdown::Both);
@@ -272,15 +291,27 @@ impl OpenConnection {
                     .unwrap();
 
                 debug!("plaintext read {:?}", buf.len());
-                //debug!("{:?}", &buf);
 
                 let _ = self.tcpls.process_r(&buf);
-                let _s = match std::str::from_utf8(self.tcpls.get_stream_data(0)
+
+                 
+                match self.mode {
+                    ServerMode::Echo => {
+                        let s = match std::str::from_utf8(self.tcpls.get_stream_data(0)
                                                             .expect("unknown stream id")) {
-                    Ok(v) => v,
-                    Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
-                };
-                //println!("read plaintext: {}\n",s);
+                        Ok(v) => v,
+                        Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
+                        };
+                        if s.len() != 1 {
+                            demo_println!("received {s}");
+                        } else {
+                            demo_println!("record received: {:?}", &buf);
+                        }
+                    },
+                    _ => {
+                        demo_println!("{}", self.tcpls.get_last_stream_processed_info());
+                    }
+                } 
                 self.incoming_plaintext(&buf);
             }
         }
@@ -325,9 +356,14 @@ impl OpenConnection {
     fn incoming_plaintext(&mut self, buf: &[u8]) {
         match self.mode {
             ServerMode::Echo => {
-                self.tcpls.update_tls_seq(self.tls_conn.get_tls_record_seq());
+                let tls_record_seq = self.tls_conn.get_tls_record_seq();
+                self.tcpls.update_tls_seq(tls_record_seq);
+                self.tcpls.set_stream_data(&buf);
+
                 let tcpls_buf = self.tcpls.create_record();
                 debug!("{:?}, len {}", &tcpls_buf, &tcpls_buf.len());
+                demo_println!("highest tls record sequence: {}", self.tcpls.get_highest_tls_record_seq());
+                demo_println!("sending {}",std::str::from_utf8(&buf).expect("Failed to read bytes"));
                 self.tls_conn
                     .writer()
                     .write_all(&tcpls_buf)
@@ -341,6 +377,17 @@ impl OpenConnection {
                     .as_mut()
                     .unwrap()
                     .write_all(buf)
+                    .unwrap();
+            }
+            ServerMode::Receive => {
+                let tls_record_seq = self.tls_conn.get_tls_record_seq();
+                self.tcpls.update_tls_seq(tls_record_seq);
+                demo_println!("sending an ack with record sequence: {}", tls_record_seq);
+                self.tcpls.add_ack();
+                let rec = self.tcpls.create_record();
+                self.tls_conn
+                    .writer()
+                    .write_all(&rec)
                     .unwrap();
             }
         }
@@ -439,6 +486,8 @@ connection.
 `forward' means the server forwards plaintext to a connection made to
 localhost:fport.
 
+`receive' mode means the server save the data send by a client over TCPLS.
+
 `--certs' names the full certificate chain, `--key' provides the
 RSA private key.
 
@@ -449,6 +498,8 @@ Usage:
      [--proto PROTO ...] [--protover PROTOVER ...] [options] http
   tlsserver-mio --certs CERTFILE --key KEYFILE [--suite SUITE ...] \
      [--proto PROTO ...] [--protover PROTOVER ...] [options] forward <fport>
+  tlsserver-mio --certs CERTFILE --key KEYFILE [--suite SUITE ...] \
+     [--proto PROTO ...] [--protover PROTOVER ...] [options] receive
   tlsserver-mio (--version | -v)
   tlsserver-mio (--help | -h)
 
@@ -483,6 +534,7 @@ Options:
 struct Args {
     cmd_echo: bool,
     cmd_http: bool,
+    cmd_receive: bool,
     flag_port: Option<u16>,
     flag_verbose: bool,
     flag_protover: Vec<String>,
@@ -658,6 +710,7 @@ fn make_config(args: &Args) -> Arc<rustls::ServerConfig> {
 }
 
 fn main() {
+    demo_println!("Demo mode enabled");
     let version = env!("CARGO_PKG_NAME").to_string() + ", version: " + env!("CARGO_PKG_VERSION");
 
     let args: Args = Docopt::new(USAGE)
@@ -684,10 +737,16 @@ fn main() {
         .unwrap();
 
     let mode = if args.cmd_echo {
+        demo_println!("Echo mode enabled");
         ServerMode::Echo
     } else if args.cmd_http {
+        demo_println!("Http mode enabled");
         ServerMode::Http
+    } else if args.cmd_receive {
+        demo_println!("Receive mode enabled");
+        ServerMode::Receive
     } else {
+        demo_println!("Forward mode enabled");
         ServerMode::Forward(args.arg_fport.expect("fport required"))
     };
 
