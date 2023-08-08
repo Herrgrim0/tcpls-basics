@@ -88,10 +88,15 @@ impl TcplsConnection {
     }
 
     /// create record, a list of one or more TCPLS frame(s)
-    pub fn process_w(&mut self) -> Option<Vec<u8>> {
+    pub fn create_record(&mut self) -> Option<Vec<u8>> {
         // application data
         let mut record: Vec<u8> = Vec::with_capacity(constant::MAX_RECORD_SIZE);
         let mut space_left = constant::MAX_RECORD_SIZE;
+
+        if !self.snd_buf.is_empty() {
+            // we keep space for control frame
+            space_left -= self.snd_buf.len();
+        }
 
         for stream in self.streams.values_mut() {
             trace!("stream: {}, len: {}, offset {}", stream.get_id(), stream.get_len_snd_buf(), stream.get_offset());
@@ -106,13 +111,10 @@ impl TcplsConnection {
             }
         }
 
-        // control data
-        if record.len() < constant::MAX_RECORD_SIZE {
-            let mut i: usize = 0;
-            while i < space_left {
-                self.add_ping(&mut record);
-                i += 1;
-            }
+        // control data at the end of the record
+        if record.len() < constant::MAX_RECORD_SIZE - self.snd_buf.len() {
+            record.extend_from_slice(&self.snd_buf);
+            self.snd_buf.clear();
         };
 
         match record.len() {
@@ -123,7 +125,7 @@ impl TcplsConnection {
     }
 
     /// read a tls record from end to start, parse every tcpls frame in it
-    pub fn process_r(&mut self, payload: &Vec<u8>) -> Result<(), Error> {
+    pub fn process_record(&mut self, payload: &Vec<u8>) -> Result<(), Error> {
         // read buffer from the end for the 0-copy feature of tcpls
 
         let mut i = payload.len() - 1;
@@ -142,7 +144,7 @@ impl TcplsConnection {
         // first byte of the payload
         if payload[0] == constant::PING_FRAME {
             trace!("Ping Frame received");
-                self.add_ack();
+                self.add_ack_frame();
         }
         Ok(())
     }
@@ -158,7 +160,7 @@ impl TcplsConnection {
             },
             constant::PING_FRAME => {
                 trace!("Ping Frame received");
-                self.add_ack(); 
+                self.add_ack_frame(); 
                 consumed += 1; 
             },
             constant::ACK_FRAME => {
@@ -169,7 +171,7 @@ impl TcplsConnection {
             constant::STREAM_FRAME | 
             constant::STREAM_FRAME_FIN => {
                 trace!("Stream frame received");
-                consumed += self.recv_stream(payload, i) + 1 // the type frame;
+                consumed += self.recv_stream_frame(payload, i) + 1 // the type frame;
                 },
             constant::NEW_TOKEN_FRAME => unreachable!(),
             constant::CONNECTION_RESET_FRAME => unreachable!(),
@@ -185,7 +187,7 @@ impl TcplsConnection {
         Ok(consumed)
     }
     // return the number of bytes read
-    fn recv_stream(&mut self, payload: &[u8], mut offset: usize) -> usize {
+    fn recv_stream_frame(&mut self, payload: &[u8], mut offset: usize) -> usize {
 
         let stream_id: u32 = conversion::slice_to_u32(&payload[offset-4..offset])
                                 .expect("Failed to convert bytes");
@@ -200,29 +202,9 @@ impl TcplsConnection {
     /// add a new stream to the current connection
     /// the stream has to be created beforehand with
     /// the TcplsStreamBuilder
-    pub fn add_stream(&mut self, n_stream: TcplsStream, id: u32) {
+    pub fn attach_stream(&mut self, n_stream: TcplsStream, id: u32) {
         self.streams.insert(id, n_stream);
         self.last_stream_id_created = id;
-    }
-
-    /// gather all tcpls frames to create a record transmitted to tls
-    pub fn create_record(&mut self) -> Vec<u8>{
-        let mut record: Vec<u8> =  match self.streams.get_mut(&0).unwrap().create_data_frame(constant::MAX_RECORD_SIZE) {
-            Some(frame) => frame,
-            None => vec![],
-        };
-
-        record.extend_from_slice(&self.snd_buf);
-
-        trace!("tcpls record with size {} is ready", record.len());
-        self.snd_buf.clear();
-        
-        record
-    }
-
-    ///
-    fn _create_control_frames(&self) -> Option<Vec<u8>> {
-        todo!();
     }
 
     /// return connection ID
@@ -280,14 +262,14 @@ impl TcplsConnection {
         self.streams.get_mut(&0).unwrap().get_data(data);
     }
 
-    fn add_ping(&mut self, record: &mut Vec<u8>) {
+    fn _add_ping_frame(&mut self, record: &mut Vec<u8>) {
         if record.len() < constant::MAX_RECORD_SIZE {
             record.push(constant::PING_FRAME);
         }
     }
 
     /// add an ACK frame in the sending buffer.
-    pub fn add_ack(&mut self) {
+    pub fn add_ack_frame(&mut self) {
         if self.snd_buf.len() + 13 < constant::MAX_RECORD_SIZE {
             self.snd_buf.extend_from_slice(&self.internal_highest_record_sequence.to_be_bytes());
             self.snd_buf.extend_from_slice(&self.conn_id.to_be_bytes());
