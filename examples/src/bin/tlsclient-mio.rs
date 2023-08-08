@@ -71,9 +71,10 @@ impl TlsClient {
         let mut buf = Vec::new();
         let len = rd.read_to_end(&mut buf)?;
         debug!("writing to buf");
+        self.tcpls_conn.update_tls_seq(self.tls_conn.get_tls_record_seq());
         if self.tls_conn.is_ready_for_tcpls(&self.tls_cfg) {
             self.tcpls_conn.set_data(&buf);
-            self.tls_conn.writer().write_all(&self.tcpls_conn.create_record()).unwrap();
+            self.tls_conn.writer().write_all(&self.tcpls_conn.create_record().expect("Failed to create record")).unwrap();
         } else {
             self.tls_conn
             .writer()
@@ -133,7 +134,7 @@ impl TlsClient {
                 .read_exact(&mut plaintext)
                 .unwrap();
             if self.tls_conn.is_ready_for_tcpls(&self.tls_cfg) {
-                let _ = self.tcpls_conn.process_r(&plaintext);
+                let _ = self.tcpls_conn.process_record(&plaintext);
             }
             io::stdout()
                 .write_all(&plaintext)
@@ -534,9 +535,6 @@ fn main() {
             tlsclient.reregister(poll.registry());
         }
         
-        //io::stdin().read_line(&mut input).expect("Failed to read line");
-        //let _tcpls_vec = tlsclient.tcpls_conn.create_record(&input.as_bytes());
-        //tlsclient.tls_conn.writer().write_all(&tcpls_vec).unwrap();
     }
 }
 

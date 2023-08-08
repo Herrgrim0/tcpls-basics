@@ -277,7 +277,7 @@ impl OpenConnection {
                 debug!("{:?}", &buf);
                 if self.tls_conn.client_accept_tcpls() && self.tcpls_enabled {
                     debug!("reading tcpls record");
-                    let _ = self.tcpls.process_r(&buf);
+                    let _ = self.tcpls.process_record(&buf);
                 }
                 let s = match std::str::from_utf8(&buf) {
                     Ok(v) => v,
@@ -331,7 +331,7 @@ impl OpenConnection {
                 let tcpls_buf: Vec<u8> = Vec::new();
                 if self.tls_conn.client_accept_tcpls() && self.tcpls_enabled {
                     self.tcpls.update_tls_seq(self.tls_conn.get_tls_record_seq());
-                    self.tcpls.create_record();
+                    self.tcpls.create_record().expect("Failed to create a record");
                 }
                 self.tls_conn
                     .writer()

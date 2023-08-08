@@ -112,10 +112,11 @@ impl TcplsClient {
         let mut buf = Vec::new();
         let len = rd.read_to_end(&mut buf)?;
         self.tcpls.set_data(&buf);
+        self.tcpls.update_tls_seq(self.tls_conn.get_tls_record_seq());
         demo_println!("sending {}", std::str::from_utf8(&buf).expect("failed to read input data"));
         self.tls_conn
             .writer()
-            .write_all(&self.tcpls.create_record())
+            .write_all(&self.tcpls.create_record().expect("error while creating record"))
             .unwrap();
 
         Ok(len)
@@ -123,7 +124,8 @@ impl TcplsClient {
 
     fn send_data(&mut self) {
         if self.tcpls.has_data() {
-            let data = self.tcpls.process_w().unwrap();
+            self.tcpls.update_tls_seq(self.tls_conn.get_tls_record_seq());
+            let data = self.tcpls.create_record().unwrap();
             debug!("data len: {}", data.len());
             debug!("sending data");
             demo_println!("Sending record of len {}", data.len());
@@ -183,8 +185,8 @@ impl TcplsClient {
                 .read_exact(&mut plaintext)
                 .unwrap();
             
-            let _ = self.tcpls.process_r(&plaintext);
-            //println!("{}\n", self.tcpls_conn.get_stream_data());
+            let _ = self.tcpls.process_record(&plaintext);
+
             match self.mode {
                 Mode::Default => {
                     let buf = self.tcpls.get_stream_data(0).expect("Failed to read TCPLS Stream");
@@ -588,7 +590,7 @@ fn ping_server(tlsclient: &mut TcplsClient) {
     }
 
     demo_println!("10 ping send");
-    process::exit(if tlsclient.clean_closure { 0 } else { 1 });
+    //process::exit(if tlsclient.clean_closure { 0 } else { 1 });
     
 }
 
@@ -623,6 +625,8 @@ fn main() {
         .expect("invalid DNS name");
 
     let mut tlsclient = TcplsClient::new(sock, server_name, config);
+    let mut poll = mio::Poll::new().unwrap();
+    let mut events = mio::Events::with_capacity(32);
 
     // Where serious things begin
 
@@ -644,16 +648,13 @@ fn main() {
             let _ = file.read_to_end(&mut data).expect("error while reading file");
             let mut n_stream = TcplsStreamBuilder::new(stream_id);
             n_stream.add_data(&data);
-            tlsclient.tcpls.add_stream(n_stream.build(), stream_id);
+            tlsclient.tcpls.attach_stream(n_stream.build(), stream_id);
             stream_id += 2;
         }
         debug!("streams created");
         tlsclient.tcpls.dbg_streams();
 
         // send file
-
-        let mut poll = mio::Poll::new().unwrap();
-        let mut events = mio::Events::with_capacity(32);
 
         tlsclient.register(poll.registry());
         debug!("Sending file");
@@ -662,6 +663,7 @@ fn main() {
             if !tlsclient.tls_conn.is_handshaking() {
                 tlsclient.send_data();
             } else {
+                demo_println!("sending Ping");
                 tlsclient.tls_conn.writer().write_all(&[constant::PING_FRAME])
                                         .expect("error while sending ping");
             }
@@ -675,7 +677,7 @@ fn main() {
             if !tlsclient.tcpls.has_data() {
                 demo_println!("All data send");
                 demo_println!("{}", tlsclient.tcpls.get_streams_sent_info());
-                // process::exit(if tlsclient.clean_closure { 0 } else { 1 });
+                break;
             }
         }
 
@@ -689,8 +691,6 @@ fn main() {
 
         tlsclient.read_source_to_end(&mut stdin).unwrap();
 
-        let mut poll = mio::Poll::new().unwrap();
-        let mut events = mio::Events::with_capacity(32);
         tlsclient.register(poll.registry());
         loop {
             poll.poll(&mut events, None).unwrap();
@@ -700,6 +700,14 @@ fn main() {
                 tlsclient.reregister(poll.registry());
             }
             tlsclient.tcpls.update_tls_seq(tlsclient.tls_conn.get_tls_record_seq());
+        }
+    }
+    loop {
+        poll.poll(&mut events, None).unwrap();
+
+        for ev in events.iter() {
+            tlsclient.ready(ev);
+            tlsclient.reregister(poll.registry());
         }
     }
 }
