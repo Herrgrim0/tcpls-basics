@@ -56,6 +56,8 @@ impl TcplsStream {
     }
 
     /// return a vec that fits in a TLS record
+    /// max_size is the maximal length the data frame
+    /// must be to fit in a record
     pub fn create_data_frame(&mut self, max_size: usize) -> Option<Vec<u8>> {
         let mut frame: Vec<u8> = Vec::new(); 
         let mut typ: u8 = constant::STREAM_FRAME;
