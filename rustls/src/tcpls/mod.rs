@@ -97,7 +97,7 @@ impl TcplsConnection {
         for stream in self.streams.values_mut() {
             trace!("stream: {}, len: {}, offset {}", stream.get_id(), stream.get_len_snd_buf(), stream.get_offset());
 
-            if stream.has_data_to_send() && space_left > constant::MIN_STREAM_DATA_SIZE  {
+            if stream.has_data_to_send() && space_left > constant::STREAM_HEADER_SIZE  {
                 record.extend_from_slice(&stream.create_stream_frame(space_left).unwrap_or_default());
                 space_left = constant::MAX_RECORD_SIZE - record.len();
             }

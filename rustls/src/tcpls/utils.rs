@@ -56,6 +56,6 @@ pub mod constant {
     pub(crate) const STREAM_CHANGE_FRAME: u8 = 0x09;
 
     pub(crate) const MAX_RECORD_SIZE: usize = MAX_FRAGMENT_LEN;
-    pub(crate) const MIN_STREAM_DATA_SIZE: usize = 16;
-    pub(crate) const MAX_STREAM_DATA_SIZE: usize = MAX_FRAGMENT_LEN - MIN_STREAM_DATA_SIZE;
+    pub(crate) const STREAM_HEADER_SIZE: usize = 15;
+    pub(crate) const MAX_STREAM_DATA_SIZE: usize = MAX_FRAGMENT_LEN - STREAM_HEADER_SIZE;
 }
