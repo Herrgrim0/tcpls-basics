@@ -48,8 +48,9 @@ pub struct TcplsConnection {
     // remembering the last stream id given to avoir collision
     last_stream_id_created: u32,
 
-    // buffer to send data to the other party
-    snd_buf: Vec<u8>, 
+    // buffer to keep control data before
+    // copy in a record
+    ctrl_buf: Vec<u8>, 
 
     //highest TLS record sequence for the ACK frame
     internal_highest_record_sequence: u64,
@@ -78,7 +79,7 @@ impl TcplsConnection {
             conn_id, 
             streams, 
             last_stream_id_created: 0, 
-            snd_buf: Vec::new(), 
+            ctrl_buf: Vec::new(), 
             internal_highest_record_sequence:0, 
             ack_received: false,
             role,
@@ -93,9 +94,9 @@ impl TcplsConnection {
         let mut record: Vec<u8> = Vec::with_capacity(constant::MAX_RECORD_SIZE);
         let mut space_left = constant::MAX_RECORD_SIZE;
 
-        if !self.snd_buf.is_empty() {
+        if !self.ctrl_buf.is_empty() {
             // we keep space for control frame
-            space_left -= self.snd_buf.len();
+            space_left -= self.ctrl_buf.len();
         }
 
         for stream in self.streams.values_mut() {
@@ -112,9 +113,9 @@ impl TcplsConnection {
         }
 
         // control data at the end of the record
-        if record.len() < constant::MAX_RECORD_SIZE - self.snd_buf.len() {
-            record.extend_from_slice(&self.snd_buf);
-            self.snd_buf.clear();
+        if record.len() < constant::MAX_RECORD_SIZE - self.ctrl_buf.len() {
+            record.extend_from_slice(&self.ctrl_buf);
+            self.ctrl_buf.clear();
         };
 
         match record.len() {
@@ -270,10 +271,10 @@ impl TcplsConnection {
 
     /// add an ACK frame in the sending buffer.
     pub fn add_ack_frame(&mut self) {
-        if self.snd_buf.len() + 13 < constant::MAX_RECORD_SIZE {
-            self.snd_buf.extend_from_slice(&self.internal_highest_record_sequence.to_be_bytes());
-            self.snd_buf.extend_from_slice(&self.conn_id.to_be_bytes());
-            self.snd_buf.push(constant::ACK_FRAME);
+        if self.ctrl_buf.len() + 13 < constant::MAX_RECORD_SIZE {
+            self.ctrl_buf.extend_from_slice(&self.internal_highest_record_sequence.to_be_bytes());
+            self.ctrl_buf.extend_from_slice(&self.conn_id.to_be_bytes());
+            self.ctrl_buf.push(constant::ACK_FRAME);
         }
     }
 
