@@ -93,7 +93,7 @@ fn test_stream_creation_max_frame_size() {
     data.extend_from_slice(&u32::to_be_bytes(2));
     data.push(STREAM_FRAME_FIN);
 
-    assert_eq!(stream.create_data_frame(MAX_STREAM_DATA_SIZE).unwrap(), data);
+    assert_eq!(stream.create_data_frame(MAX_RECORD_SIZE).unwrap(), data);
 }
 
 #[test]
@@ -109,7 +109,7 @@ fn test_stream_creation_min_frame_size() {
     data.extend_from_slice(&u32::to_be_bytes(2));
     data.push(STREAM_FRAME_FIN);
 
-    assert_eq!(stream.create_data_frame(MAX_STREAM_DATA_SIZE).as_deref(), None);
+    assert_eq!(stream.create_data_frame(MAX_RECORD_SIZE).as_deref(), None);
 }
 
 #[test]
@@ -125,15 +125,15 @@ fn test_stream_creation_random_frame_size() {
     data.extend_from_slice(&u32::to_be_bytes(2)); //stream id
     data.push(STREAM_FRAME_FIN);
 
-    assert_eq!(stream.create_data_frame(MAX_STREAM_DATA_SIZE).unwrap(), data);
+    assert_eq!(stream.create_data_frame(MAX_RECORD_SIZE).unwrap(), data);
 }
 
 // test a stream with a bigger size than the max size of a tcpls frame
 #[test]
 fn test_stream_creation_more_than_frame_size() {
     let mut builder = TcplsStreamBuilder::new(2);
-    let size_1 = MAX_RECORD_SIZE;
-    let size_2 = MAX_RECORD_SIZE/2;
+    let size_1 = MAX_STREAM_DATA_SIZE;
+    let size_2 = MAX_STREAM_DATA_SIZE/2;
     let mut data_1 = rand::random_vec(size_1).unwrap();
     let mut data_2 = rand::random_vec(size_2).unwrap();
     builder.add_data(&data_1);
@@ -141,15 +141,15 @@ fn test_stream_creation_more_than_frame_size() {
 
     let mut stream = builder.build();
 
-    data_1.extend_from_slice(&u16::to_be_bytes(MAX_RECORD_SIZE as u16)); //len
+    data_1.extend_from_slice(&u16::to_be_bytes(MAX_STREAM_DATA_SIZE as u16)); //len
     data_1.extend_from_slice(&u64::to_be_bytes(0)); //offset
     data_1.extend_from_slice(&u32::to_be_bytes(2)); //stream id
     data_1.push(STREAM_FRAME);
 
     assert_eq!(stream.create_data_frame(MAX_RECORD_SIZE).unwrap(), data_1);
 
-    data_2.extend_from_slice(&u16::to_be_bytes((MAX_RECORD_SIZE/2) as u16)); //len
-    data_2.extend_from_slice(&u64::to_be_bytes(MAX_RECORD_SIZE as u64)); //offset
+    data_2.extend_from_slice(&u16::to_be_bytes(size_2 as u16)); //len
+    data_2.extend_from_slice(&u64::to_be_bytes(size_1 as u64)); //offset
     data_2.extend_from_slice(&u32::to_be_bytes(2)); //stream id
     data_2.push(STREAM_FRAME_FIN);
 
