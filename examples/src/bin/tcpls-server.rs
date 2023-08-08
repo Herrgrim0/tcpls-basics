@@ -360,7 +360,7 @@ impl OpenConnection {
                 self.tcpls.update_tls_seq(tls_record_seq);
                 self.tcpls.set_stream_data(&buf);
 
-                let tcpls_buf = self.tcpls.create_record().expect("failed to create record");
+                let tcpls_buf = self.tcpls.create_record().expect("Failed to create record");
                 debug!("{:?}, len {}", &tcpls_buf, &tcpls_buf.len());
                 demo_println!("highest tls record sequence: {}", self.tcpls.get_highest_tls_record_seq());
                 demo_println!("sending {}",std::str::from_utf8(&buf).expect("Failed to read bytes"));
@@ -384,7 +384,7 @@ impl OpenConnection {
                 self.tcpls.update_tls_seq(tls_record_seq);
                 demo_println!("sending an ack with record sequence: {}", tls_record_seq);
                 self.tcpls.add_ack_frame();
-                let rec = self.tcpls.create_record().expect("error while creating record");
+                let rec = self.tcpls.create_record().expect("Failed to create record");
                 self.tls_conn
                     .writer()
                     .write_all(&rec)

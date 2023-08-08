@@ -113,10 +113,10 @@ impl TcplsClient {
         let len = rd.read_to_end(&mut buf)?;
         self.tcpls.set_data(&buf);
         self.tcpls.update_tls_seq(self.tls_conn.get_tls_record_seq());
-        demo_println!("sending {}", std::str::from_utf8(&buf).expect("failed to read input data"));
+        demo_println!("sending {}", std::str::from_utf8(&buf).expect("Failed to read input data"));
         self.tls_conn
             .writer()
-            .write_all(&self.tcpls.create_record().expect("error while creating record"))
+            .write_all(&self.tcpls.create_record().expect("Failed to create record"))
             .unwrap();
 
         Ok(len)
@@ -125,7 +125,7 @@ impl TcplsClient {
     fn send_data(&mut self) {
         if self.tcpls.has_data() {
             self.tcpls.update_tls_seq(self.tls_conn.get_tls_record_seq());
-            let data = self.tcpls.create_record().unwrap();
+            let data = self.tcpls.create_record().expect("Failed to create record");
             debug!("data len: {}", data.len());
             debug!("sending data");
             demo_println!("Sending record of len {}", data.len());
