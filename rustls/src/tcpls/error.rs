@@ -14,4 +14,6 @@ pub enum Error {
     /// when converting a slice of byte to an unsigned
     /// of a certain size, the number of bytes given is wrong
     BadSliceLength,
+    /// the record has not a size between 0 and MAX_RECORD_SIZE
+    UnexpectedRecordSize,
 }
