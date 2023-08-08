@@ -30,7 +30,7 @@ impl TcplsStream {
     /// receive a vector where frame type and 
     /// stream id bytes have been removed
     /// return the number of bytes read
-    pub fn read_record(&mut self, new_data: &[u8]) -> usize {
+    pub fn read_stream_frame(&mut self, new_data: &[u8]) -> usize {
         trace!("stream {} has a data frame", self.stream_id);
         let mut cursor: usize = new_data.len();
 
@@ -45,12 +45,7 @@ impl TcplsStream {
         cursor -= 2;
         trace!("{} - cursor: {}, stream_len: {}, offset: {}", self.stream_id, cursor, stream_len, self.offset);
         
-        if stream_len as usize > cursor {
-            self.rcv_data.extend_from_slice(&new_data[0..cursor]);
-            trace!("length received: {}", self.rcv_data.len());
-        } else {
-            self.rcv_data.extend_from_slice(&new_data[cursor-stream_len as usize..cursor]);
-        }
+        self.rcv_data.extend_from_slice(&new_data[cursor-stream_len as usize..cursor]);
 
         stream_len as usize + 10
     }
@@ -58,7 +53,7 @@ impl TcplsStream {
     /// return a vec that fits in a TLS record
     /// max_size is the maximal length the data frame
     /// must be to fit in a record
-    pub fn create_data_frame(&mut self, max_size: usize) -> Option<Vec<u8>> {
+    pub fn create_stream_frame(&mut self, max_size: usize) -> Option<Vec<u8>> {
         let mut frame: Vec<u8> = Vec::new(); 
         let mut typ: u8 = constant::STREAM_FRAME;
 

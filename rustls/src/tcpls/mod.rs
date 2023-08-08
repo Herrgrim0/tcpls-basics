@@ -98,7 +98,7 @@ impl TcplsConnection {
             trace!("stream: {}, len: {}, offset {}", stream.get_id(), stream.get_len_snd_buf(), stream.get_offset());
 
             if stream.has_data_to_send() && space_left > constant::MIN_STREAM_DATA_SIZE  {
-                record.extend_from_slice(&stream.create_data_frame(space_left).unwrap_or_default());
+                record.extend_from_slice(&stream.create_stream_frame(space_left).unwrap_or_default());
                 space_left = constant::MAX_RECORD_SIZE - record.len();
             }
         }
@@ -188,7 +188,7 @@ impl TcplsConnection {
             .or_insert(TcplsStream::new(stream_id, Vec::new()));
 
         self.last_stream_processed = stream_id;
-        st.read_record(&payload[..offset]) + 4 // bytes removed from offset
+        st.read_stream_frame(&payload[..offset]) + 4 // bytes removed from offset
     }
 
     /// add a new stream to the current connection
