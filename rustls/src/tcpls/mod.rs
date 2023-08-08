@@ -89,26 +89,17 @@ impl TcplsConnection {
     }
 
     /// create record, a list of one or more TCPLS frame(s)
-    pub fn create_record(&mut self) -> Option<Vec<u8>> {
+    pub fn create_record(&mut self) -> Result<Vec<u8>, Error> {
         // application data
         let mut record: Vec<u8> = Vec::with_capacity(constant::MAX_RECORD_SIZE);
-        let mut space_left = constant::MAX_RECORD_SIZE;
-
-        if !self.ctrl_buf.is_empty() {
-            // we keep space for control frame
-            space_left -= self.ctrl_buf.len();
-        }
+        let mut space_left = constant::MAX_RECORD_SIZE - self.ctrl_buf.len();
 
         for stream in self.streams.values_mut() {
             trace!("stream: {}, len: {}, offset {}", stream.get_id(), stream.get_len_snd_buf(), stream.get_offset());
-            if record.len() >= constant::MAX_RECORD_SIZE {
-                break;
-            } else {
-                space_left = constant::MAX_RECORD_SIZE - record.len();
-            }
 
             if stream.has_data_to_send() && space_left > constant::MIN_STREAM_DATA_SIZE  {
                 record.extend_from_slice(&stream.create_data_frame(space_left).unwrap_or_default());
+                space_left = constant::MAX_RECORD_SIZE - record.len();
             }
         }
 
@@ -119,9 +110,9 @@ impl TcplsConnection {
         };
 
         match record.len() {
-            0 => None,
-            1 ..=constant::MAX_RECORD_SIZE => Some(record),
-            _ => panic!("record creation failed"),
+            0 => Ok(vec![0]),
+            1 ..=constant::MAX_RECORD_SIZE => Ok(record),
+            _ => Err(Error::UnexpectedRecordSize),
         }
     }
 
