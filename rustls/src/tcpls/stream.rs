@@ -61,8 +61,8 @@ impl TcplsStream {
             return None;
         };
 
-        if self.snd_data[self.offset as usize..].len() >= max_size {
-            let data_size = self.offset as usize + max_size - constant::MIN_STREAM_DATA_SIZE;
+        if self.snd_data[self.offset as usize..].len() + constant::STREAM_HEADER_SIZE > max_size {
+            let data_size = self.offset as usize + max_size - constant::STREAM_HEADER_SIZE;
             frame.extend_from_slice(&self.snd_data[self.offset as usize..data_size]);
         } else {
             frame.extend_from_slice(&self.snd_data[self.offset as usize..]);
