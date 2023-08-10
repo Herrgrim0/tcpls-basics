@@ -5,6 +5,8 @@
 use std::process;
 use std::sync::Arc;
 use log::debug;
+use mio::Events;
+use mio::Poll;
 use mio::net::TcpStream;
 //use rustls::ClientConfig;
 use rustls::tcpls::Role;
@@ -18,7 +20,6 @@ use std::io;
 use std::io::{BufReader, Read, Write};
 use std::net::SocketAddr;
 use std::str;
-use chrono;
 
 #[macro_use]
 extern crate serde_derive;
@@ -132,7 +133,7 @@ impl TcplsClient {
             println!("last frame of the record: {}",data[data.len()-1]);
             self.tls_conn
             .writer()
-            .write(&data).unwrap();
+            .write_all(&data).unwrap();
         }
     }
 
@@ -190,11 +191,10 @@ impl TcplsClient {
             match self.mode {
                 Mode::Default => {
                     let buf = self.tcpls.get_stream_data(0).expect("Failed to read TCPLS Stream");
-                    demo_println!("received: {}", std::str::from_utf8(&buf).expect("Failed to read utf-8 sequence"));
+                    demo_println!("received: {}", std::str::from_utf8(buf).expect("Failed to read utf-8 sequence"));
                 },
                 Mode::Streams | Mode::Ping => {
                     demo_println!("Ack received\n{}", self.tcpls.get_last_ack_info());
-                    
                 },
             }
         }
@@ -550,28 +550,29 @@ fn make_config(args: &Args) -> Arc<rustls::ClientConfig> {
 }
 
 /// ping continuously the server running tcpls and wait for an ack
-fn ping_server(tlsclient: &mut TcplsClient) {
+fn ping_server(tlsclient: &mut TcplsClient, poll: &mut Poll, events: &mut Events) {
     // send a ping and wait an Ack over a TCPLS connection
     let mut index = 0;
     tlsclient.set_mode(Mode::Ping);
     let ping: [u8;1] = [constant::PING_FRAME];
     let padding: [u8; 1] = [constant::PADDING_FRAME];
 
-    let mut poll = mio::Poll::new().unwrap();
-    let mut events = mio::Events::with_capacity(32);
+    //let mut poll = mio::Poll::new().unwrap();
+    //let mut events = mio::Events::with_capacity(32);
     tlsclient.register(poll.registry());
     tlsclient.tcpls.inv_ack();
     while index < 10 {
-        poll.poll(&mut events, None).unwrap();
+        poll.poll(events, None).unwrap();
 
         for ev in events.iter() {
             tlsclient.ready(ev);
             tlsclient.reregister(poll.registry());
         }
-    
+        
         if !tlsclient.tls_conn.is_handshaking() && tlsclient.tcpls.has_received_ack() {
+            tlsclient.tcpls.update_tls_seq(tlsclient.tls_conn.get_tls_record_seq());
             debug!("sending a ping {:?}", &ping);
-            demo_println!("Sending a Ping");
+            demo_println!("Sending Ping {}", index);
             tlsclient.tls_conn
                 .writer()
                 .write_all(&ping)
@@ -580,18 +581,13 @@ fn ping_server(tlsclient: &mut TcplsClient) {
             tlsclient.tcpls.inv_ack(); // wait for next ack before resending a ping
             index += 1;
         }
-        tlsclient.tcpls.update_tls_seq(tlsclient.tls_conn.get_tls_record_seq());
 
         tlsclient.tls_conn
                 .writer()
                 .write_all(&padding)
                 .unwrap(); // To avoid a double ping 
-
-    }
-
-    demo_println!("10 ping send");
-    //process::exit(if tlsclient.clean_closure { 0 } else { 1 });
-    
+        
+    } 
 }
 
 /// Parse some arguments, then make a TLS client connection
@@ -683,7 +679,7 @@ fn main() {
 
     } else if args.flag_ping {
         demo_println!("Feature Ping enabled");
-        ping_server(&mut tlsclient);
+        ping_server(&mut tlsclient, &mut poll, &mut events);
     } else {
         demo_println!("Default feature enabled");
         // send a string over a TCPLS connection
