@@ -293,8 +293,9 @@ impl OpenConnection {
                 debug!("plaintext read {:?}", buf.len());
 
                 let _ = self.tcpls.process_record(&buf);
+                self.tcpls.update_tls_seq(self.tls_conn.get_tls_record_seq());
+                demo_println!("highest tls record sequence: {}", self.tcpls.get_highest_tls_record_seq());
 
-                 
                 match self.mode {
                     ServerMode::Echo => {
                         let s = match std::str::from_utf8(self.tcpls.get_stream_data(0)
@@ -302,10 +303,10 @@ impl OpenConnection {
                         Ok(v) => v,
                         Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
                         };
-                        if s.len() != 1 {
-                            demo_println!("received {s}");
-                        } else {
+                        if buf.len() < 7 && *buf.iter().max().unwrap_or(&0) == 1 {
                             demo_println!("record received: {:?}", &buf);
+                        } else {
+                            demo_println!("received {s}");
                         }
                     },
                     _ => {
@@ -356,14 +357,18 @@ impl OpenConnection {
     fn incoming_plaintext(&mut self, buf: &[u8]) {
         match self.mode {
             ServerMode::Echo => {
-                let tls_record_seq = self.tls_conn.get_tls_record_seq();
-                self.tcpls.update_tls_seq(tls_record_seq);
-                self.tcpls.set_stream_data(&buf);
-
                 let tcpls_buf = self.tcpls.create_record().expect("Failed to create record");
+
+                let is_ping_or_padd = *buf.iter().max().unwrap_or(&0) == 1;
+                // we check that the received data are
+                // only padding or ping frame
+                if buf.len() < 7 && is_ping_or_padd {
+                    demo_println!("{:?}", tcpls_buf);
+                } else {
+                    demo_println!("sending {}",std::str::from_utf8(buf).expect("Failed to read bytes"));
+                }
                 debug!("{:?}, len {}", &tcpls_buf, &tcpls_buf.len());
-                demo_println!("highest tls record sequence: {}", self.tcpls.get_highest_tls_record_seq());
-                demo_println!("sending {}",std::str::from_utf8(&buf).expect("Failed to read bytes"));
+
                 self.tls_conn
                     .writer()
                     .write_all(&tcpls_buf)
