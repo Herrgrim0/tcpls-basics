@@ -248,10 +248,9 @@ impl TcplsConnection {
         self.internal_highest_record_sequence
     }
 
-    /// fill a stream w/ data to send
+    /// fill the stream 0 w/ data to send
     pub fn set_data(&mut self, data: &[u8]) {
-        //self.streams.get(&0).unwrap().get_data(data);
-        self.streams.get_mut(&0).unwrap().get_data(data);
+        self.streams.get_mut(&0).unwrap().add_data_to_send(data);
     }
 
     fn _add_ping_frame(&mut self, record: &mut Vec<u8>) {
