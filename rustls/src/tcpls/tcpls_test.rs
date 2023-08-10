@@ -1,4 +1,5 @@
-use crate::{tcpls::utils::{conversion, constant::{STREAM_FRAME_FIN, STREAM_FRAME, MAX_RECORD_SIZE}}, rand};
+use crate::tcpls::utils::conversion;
+use crate::tcpls::constant::{STREAM_FRAME_FIN, STREAM_FRAME, MAX_RECORD_SIZE};
 
 use super::{stream::TcplsStreamBuilder, utils::constant::MAX_STREAM_DATA_SIZE};
 
@@ -83,7 +84,7 @@ fn test_slice_to_u64_big_value() {
 #[test]
 fn test_stream_creation_max_frame_size() {
     let mut builder = TcplsStreamBuilder::new(2);
-    let mut data = rand::random_vec(MAX_STREAM_DATA_SIZE).unwrap();
+    let mut data = vec![42; MAX_STREAM_DATA_SIZE];
     builder.add_data(&data);
 
     let mut stream = builder.build();
@@ -99,7 +100,7 @@ fn test_stream_creation_max_frame_size() {
 #[test]
 fn test_stream_creation_min_frame_size() {
     let mut builder = TcplsStreamBuilder::new(2);
-    let mut data = rand::random_vec(0).unwrap_or_default();
+    let mut data = vec![];
     builder.add_data(&data);
 
     let mut stream = builder.build();
@@ -115,7 +116,7 @@ fn test_stream_creation_min_frame_size() {
 #[test]
 fn test_stream_creation_random_frame_size() {
     let mut builder = TcplsStreamBuilder::new(2);
-    let mut data = rand::random_vec(65).unwrap();
+    let mut data = vec![10; 65];
     builder.add_data(&data);
 
     let mut stream = builder.build();
@@ -134,8 +135,8 @@ fn test_stream_creation_more_than_frame_size() {
     let mut builder = TcplsStreamBuilder::new(2);
     let size_1 = MAX_STREAM_DATA_SIZE;
     let size_2 = MAX_STREAM_DATA_SIZE/2;
-    let mut data_1 = rand::random_vec(size_1).unwrap();
-    let mut data_2 = rand::random_vec(size_2).unwrap();
+    let mut data_1 = vec![42; size_1];
+    let mut data_2 = vec![42; size_2];
     builder.add_data(&data_1);
     builder.add_data(&data_2);
 
