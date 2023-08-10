@@ -1041,7 +1041,7 @@ impl CommonState {
         let iter = self.message_fragmenter.fragment_slice(
             ContentType::ApplicationData,
             ProtocolVersion::TLSv1_2,
-            &payload,
+            payload,
         );
         for m in iter {
             self.send_single_fragment(m);
