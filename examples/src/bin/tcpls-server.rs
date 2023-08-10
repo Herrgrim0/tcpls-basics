@@ -45,10 +45,6 @@ enum ServerMode {
     /// Write back received bytes
     Echo,
 
-    /// Do one read, then write a bodged HTTP response and
-    /// cleanly close the connection.
-    Http,
-
     /// Forward traffic to/from given port on localhost.
     Forward(u16),
 
@@ -156,7 +152,6 @@ struct OpenConnection {
     mode: ServerMode,
     tls_conn: rustls::ServerConnection,
     back: Option<TcpStream>,
-    sent_http_response: bool,
     tcpls: TcplsConnection,
 }
 
@@ -203,7 +198,6 @@ impl OpenConnection {
             mode,
             tls_conn,
             back,
-            sent_http_response: false,
             tcpls: TcplsConnection::new(0, Role::Server),
         }
     }
@@ -374,9 +368,7 @@ impl OpenConnection {
                     .write_all(&tcpls_buf)
                     .unwrap();
             }
-            ServerMode::Http => {
-                self.send_http_response_once();
-            }
+
             ServerMode::Forward(_) => {
                 self.back
                     .as_mut()
@@ -395,19 +387,6 @@ impl OpenConnection {
                     .write_all(&rec)
                     .unwrap();
             }
-        }
-    }
-
-    fn send_http_response_once(&mut self) {
-        let response =
-            b"HTTP/1.0 200 OK\r\nConnection: close\r\n\r\nHello world from rustls tlsserver\r\n";
-        if !self.sent_http_response {
-            self.tls_conn
-                .writer()
-                .write_all(response)
-                .unwrap();
-            self.sent_http_response = true;
-            self.tls_conn.send_close_notify();
         }
     }
 
@@ -485,9 +464,6 @@ Runs a TCPLS server on :PORT.  The default PORT is 443.
 
 `echo' mode means the server echoes received data on each connection.
 
-`http' mode means the server blindly sends a HTTP response on each
-connection.
-
 `forward' means the server forwards plaintext to a connection made to
 localhost:fport.
 
@@ -538,7 +514,6 @@ Options:
 #[derive(Debug, Deserialize)]
 struct Args {
     cmd_echo: bool,
-    cmd_http: bool,
     cmd_receive: bool,
     flag_port: Option<u16>,
     flag_verbose: bool,
@@ -744,9 +719,6 @@ fn main() {
     let mode = if args.cmd_echo {
         demo_println!("Echo mode enabled");
         ServerMode::Echo
-    } else if args.cmd_http {
-        demo_println!("Http mode enabled");
-        ServerMode::Http
     } else if args.cmd_receive {
         demo_println!("Receive mode enabled");
         ServerMode::Receive

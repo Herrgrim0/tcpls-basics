@@ -207,24 +207,6 @@ impl TcplsClient {
         }
     }
 
-    /// print the data received by a stream with the given id
-    fn _print_tcpls_stream(&mut self, id: u32) {
-        let stream_data = match self.tcpls.get_stream_data(id) {
-            Ok(data) => data,
-            Err(err) => {
-                println!("TCPLS Error while reading data: {:?}", err);
-                return;
-            }
-        };
-        demo_println!("{}", std::str::from_utf8(stream_data).unwrap());
-        
-        io::stdout()
-            .write_all(stream_data)
-            .unwrap();
-
-        println!("{}", std::str::from_utf8(stream_data).unwrap());
-    }
-
     fn do_write(&mut self) {
         self.tls_conn
             .write_tls(&mut self.socket)
