@@ -86,13 +86,6 @@ impl TcplsStream {
         trace!("{:?}", &frame[frame.len()-15..frame.len()]);
     }
 
-    /// retrieve data to send
-    pub fn get_data(&mut self, data: &[u8]) -> usize {
-        self.snd_data.extend_from_slice(data);
-
-        self.snd_data.len()
-    }
-
     /// return a ref to the app data received
     pub fn get_stream_data(&self) -> &[u8] {
         &self.rcv_data
@@ -108,7 +101,8 @@ impl TcplsStream {
     /// send. Compare offset and len of the buffer
     /// of data to send to do so.
     pub fn has_data_to_send(&self) -> bool {
-        self.snd_data.len() > self.offset as usize
+        !self.snd_data.is_empty() && 
+        (self.snd_data.len() > self.offset as usize)
     }
 
     /// return id
