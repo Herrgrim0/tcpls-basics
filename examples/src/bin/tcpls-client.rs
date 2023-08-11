@@ -622,11 +622,11 @@ fn main() {
         
         let filenames: Vec<&str> = raw_filenames.split(' ').collect();
         for filename in filenames {
-            demo_println!("giving stream {stream_id} to file: {filename}");
             let mut file = File::open(filename).expect("Error while opening file");
             let mut data: Vec<u8> = Vec::new();
             let _ = file.read_to_end(&mut data).expect("error while reading file");
             let mut n_stream = TcplsStreamBuilder::new(stream_id);
+            demo_println!("giving stream {stream_id} to file: {filename}\nwith {} bytes of data", data.len());
             n_stream.add_data(&data);
             tlsclient.tcpls.attach_stream(n_stream.build(), stream_id);
             stream_id += 2;
