@@ -301,6 +301,7 @@ impl OpenConnection {
                             demo_println!("record received: {:?}", &buf);
                         } else {
                             demo_println!("received {s}");
+                            self.tcpls.set_data(&buf);
                         }
                     },
                     _ => {
