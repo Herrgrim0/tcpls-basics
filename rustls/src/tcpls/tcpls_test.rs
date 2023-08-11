@@ -1,7 +1,10 @@
 use crate::tcpls::utils::conversion;
 use crate::tcpls::constant::{STREAM_FRAME_FIN, STREAM_FRAME, MAX_RECORD_SIZE};
 
-use super::{stream::TcplsStreamBuilder, utils::constant::MAX_STREAM_DATA_SIZE};
+use super::stream::TcplsStreamBuilder;
+use super::utils::constant::STREAM_HEADER_SIZE;
+
+const MAX_STREAM_DATA_SIZE: usize = MAX_RECORD_SIZE - STREAM_HEADER_SIZE;
 
 // TEST conversion function
 // the random numbers for slc_3 have been chosen
