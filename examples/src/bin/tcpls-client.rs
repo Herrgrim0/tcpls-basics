@@ -129,8 +129,9 @@ impl TcplsClient {
             let data = self.tcpls.create_record().expect("Failed to create record");
             debug!("data len: {}", data.len());
             debug!("sending data");
-            demo_println!("Sending record of len {}", data.len());
-            println!("last frame of the record: {}",data[data.len()-1]);
+            demo_println!("Sending record of len {}\nwith frame from stream: {}", 
+                            data.len(), 
+                            self.tcpls.get_last_stream_processed_id());
             self.tls_conn
             .writer()
             .write_all(&data).unwrap();
@@ -194,7 +195,8 @@ impl TcplsClient {
                     demo_println!("received: {}", std::str::from_utf8(buf).expect("Failed to read utf-8 sequence"));
                 },
                 Mode::Streams | Mode::Ping => {
-                    demo_println!("Ack received\n{}", self.tcpls.get_last_ack_info());
+                    //demo_println!("record received:\n{:?}", plaintext);
+                    demo_println!("Ack with record sequence {} received",self.tcpls.get_highest_record_sequence_received());
                 },
             }
         }
@@ -641,8 +643,8 @@ fn main() {
             if !tlsclient.tls_conn.is_handshaking() {
                 tlsclient.send_data();
             } else {
-                demo_println!("sending Ping");
-                tlsclient.tls_conn.writer().write_all(&[constant::PING_FRAME])
+                //demo_println!("sending Ping");
+                tlsclient.tls_conn.writer().write_all(&[constant::PADDING_FRAME])
                                         .expect("error while sending ping");
             }
 

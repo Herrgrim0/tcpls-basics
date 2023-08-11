@@ -285,10 +285,10 @@ impl OpenConnection {
                     .unwrap();
 
                 debug!("plaintext read {:?}", buf.len());
-
-                let _ = self.tcpls.process_record(&buf);
+                
                 self.tcpls.update_tls_seq(self.tls_conn.get_tls_record_seq());
-                demo_println!("highest tls record sequence: {}", self.tcpls.get_highest_tls_record_seq());
+                
+                let _ = self.tcpls.process_record(&buf);
 
                 match self.mode {
                     ServerMode::Echo => {
@@ -297,7 +297,7 @@ impl OpenConnection {
                         Ok(v) => v,
                         Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
                         };
-                        if buf.len() < 7 && *buf.iter().max().unwrap_or(&0) == 1 {
+                        if buf.len() < 8 && *buf.iter().max().unwrap_or(&0) == 1 {
                             demo_println!("record received: {:?}", &buf);
                         } else {
                             demo_println!("received {s}");
@@ -305,6 +305,7 @@ impl OpenConnection {
                         }
                     },
                     _ => {
+                        demo_println!("Received record of len {}", buf.len());
                         demo_println!("{}", self.tcpls.get_last_stream_processed_info());
                     }
                 } 
@@ -357,8 +358,9 @@ impl OpenConnection {
                 let is_ping_or_padd = *buf.iter().max().unwrap_or(&0) == 1;
                 // we check that the received data are
                 // only padding or ping frame
-                if buf.len() < 7 && is_ping_or_padd {
-                    demo_println!("{:?}", tcpls_buf);
+                
+                if buf.len() < 8 && is_ping_or_padd {
+                    demo_println!("Sending ack with highest record sequence: {}", self.tcpls.get_highest_tls_record_seq());
                 } else {
                     demo_println!("sending {}",std::str::from_utf8(buf).expect("Failed to read bytes"));
                 }
@@ -383,6 +385,7 @@ impl OpenConnection {
                 demo_println!("sending an ack with record sequence: {}", tls_record_seq);
                 self.tcpls.add_ack_frame();
                 let rec = self.tcpls.create_record().expect("Failed to create record");
+                //demo_println!("record: {:?}", rec);
                 self.tls_conn
                     .writer()
                     .write_all(&rec)
