@@ -100,6 +100,7 @@ impl TcplsConnection {
             if stream.has_data_to_send() && space_left > constant::STREAM_HEADER_SIZE  {
                 record.extend_from_slice(&stream.create_stream_frame(space_left).unwrap_or_default());
                 space_left = constant::MAX_RECORD_SIZE - record.len();
+                self.last_stream_processed = stream.get_id();
             }
         }
 
@@ -304,15 +305,19 @@ impl TcplsConnection {
     /// return a string with info about last stream processed
     pub fn get_last_stream_processed_info(&self) -> String {
         let stream = self.streams.get(&self.last_stream_processed).expect("Failed to get Stream");
-        format!("Stream ID: {}
-                  offset: {}
-                  current length: {}", 
+        format!("\nStream ID: {}, offset: {}, received length: {}", 
                 stream.get_id(), stream.get_offset(), stream.get_len_recv_buf())
     }
 
+    /// return the id of the last stream processed either by reading
+    /// or writing file in it
+    pub fn get_last_stream_processed_id(&self) -> u32 {
+        self.last_stream_processed
+    }
+
     /// return highest record sequence received in a string
-    pub fn get_last_ack_info(&self) -> String {
-        format!("Highest record sequence received: {}", self.highest_record_sequence_received)
+    pub fn get_highest_record_sequence_received(&self) -> String {
+        format!("{}", self.highest_record_sequence_received)
     }
 
     /// return a string with the info of each stream,
@@ -332,7 +337,7 @@ impl TcplsConnection {
     pub fn get_streams_sent_info(&self) -> String {
         let mut info = String::new();
         for stream in self.streams.values() {
-            info.push_str(&format!(" Stream {} sent {} bytes.\n", 
+            info.push_str(&format!("Stream {} sent {} bytes.\n", 
                                           stream.get_id(),
                                           stream.get_len_snd_buf()))
         }
