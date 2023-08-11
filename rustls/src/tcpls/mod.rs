@@ -325,7 +325,7 @@ impl TcplsConnection {
     pub fn get_streams_received_info(&self) -> String {
         let mut info = String::new();
         for stream in self.streams.values() {
-            info.push_str(&format!(" Stream {} received {} bytes.\n", 
+            info.push_str(&format!("\nStream {} received {} bytes.\n", 
                                           stream.get_id(),
                                           stream.get_len_recv_buf()))
         }
@@ -337,7 +337,7 @@ impl TcplsConnection {
     pub fn get_streams_sent_info(&self) -> String {
         let mut info = String::new();
         for stream in self.streams.values() {
-            info.push_str(&format!("Stream {} sent {} bytes.\n", 
+            info.push_str(&format!("\nStream {} sent {} bytes.\n", 
                                           stream.get_id(),
                                           stream.get_len_snd_buf()))
         }
