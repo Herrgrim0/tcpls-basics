@@ -593,7 +593,8 @@ pub enum ClientExtension {
     TransportParameters(Vec<u8>),
     TransportParametersDraft(Vec<u8>),
     EarlyData,
-    Tcpls(TcplsExtension),
+    Tcpls,
+    TcplsExt(TcplsExtension),
     Unknown(UnknownExtension),
 }
 
@@ -617,7 +618,8 @@ impl ClientExtension {
             Self::TransportParameters(_) => ExtensionType::TransportParameters,
             Self::TransportParametersDraft(_) => ExtensionType::TransportParametersDraft,
             Self::EarlyData => ExtensionType::EarlyData,
-            Self::Tcpls(_) => ExtensionType::TCPLS,
+            Self::Tcpls => ExtensionType::TCPLS,
+            Self::TcplsExt(_) => ExtensionType::TCPLS,
             Self::Unknown(ref r) => r.typ,
         }
     }
@@ -637,6 +639,7 @@ impl Codec for ClientExtension {
             Self::SessionTicket(ClientSessionTicket::Request)
             | Self::ExtendedMasterSecretRequest
             | Self::SignedCertificateTimestampRequest
+            | Self::Tcpls
             | Self::EarlyData => {}
             Self::SessionTicket(ClientSessionTicket::Offer(ref r)) => r.encode(&mut sub),
             Self::Protocols(ref r) => r.encode(&mut sub),
@@ -649,7 +652,7 @@ impl Codec for ClientExtension {
             Self::TransportParameters(ref r) | Self::TransportParametersDraft(ref r) => {
                 sub.extend_from_slice(r);
             }
-            Self::Tcpls(ref r) => r.encode(&mut sub),
+            Self::TcplsExt(ref r) => r.encode(&mut sub),
             Self::Unknown(ref r) => r.encode(&mut sub),
         }
 
@@ -705,7 +708,9 @@ impl Codec for ClientExtension {
                 Self::TransportParametersDraft(sub.rest().to_vec())
             }
             ExtensionType::EarlyData if !sub.any_left() => Self::EarlyData,
-            ExtensionType::TCPLS => Self::Tcpls(TcplsExtension::read(typ, &mut sub)),
+            ExtensionType::TCPLS => Self::Tcpls,
+            ExtensionType::TCPLS_JOIN | ExtensionType::TCPLS_TOKEN => 
+                Self::TcplsExt(TcplsExtension::read(typ, &mut sub)),
             _ => Self::Unknown(UnknownExtension::read(typ, &mut sub)),
         };
 
@@ -766,7 +771,8 @@ pub enum ServerExtension {
     TransportParameters(Vec<u8>),
     TransportParametersDraft(Vec<u8>),
     EarlyData,
-    Tcpls(TcplsExtension),
+    Tcpls,
+    TcplsJoin(TcplsExtension),
     TcplsToken(TcplsExtension),
     Unknown(UnknownExtension),
 }
@@ -788,8 +794,9 @@ impl ServerExtension {
             Self::TransportParameters(_) => ExtensionType::TransportParameters,
             Self::TransportParametersDraft(_) => ExtensionType::TransportParametersDraft,
             Self::EarlyData => ExtensionType::EarlyData,
-            Self::Tcpls(_) => ExtensionType::TCPLS,
+            Self::Tcpls => ExtensionType::TCPLS,
             Self::TcplsToken(_) => ExtensionType::TCPLS_TOKEN,
+            Self::TcplsJoin(_) => ExtensionType::TCPLS_JOIN,
             Self::Unknown(ref r) => r.typ,
         }
     }
@@ -806,6 +813,7 @@ impl Codec for ServerExtension {
             | Self::SessionTicketAck
             | Self::ExtendedMasterSecretAck
             | Self::CertificateStatusAck
+            | Self::Tcpls
             | Self::EarlyData => {}
             Self::RenegotiationInfo(ref r) => r.encode(&mut sub),
             Self::Protocols(ref r) => r.encode(&mut sub),
@@ -816,7 +824,7 @@ impl Codec for ServerExtension {
             Self::TransportParameters(ref r) | Self::TransportParametersDraft(ref r) => {
                 sub.extend_from_slice(r);
             }
-            Self::Tcpls(ref r) => r.encode(&mut sub),
+            Self::TcplsJoin(ref r) => r.encode(&mut sub),
             Self::TcplsToken(ref r) => {r.encode(&mut sub)},
             Self::Unknown(ref r) => r.encode(&mut sub),
         }
@@ -855,7 +863,8 @@ impl Codec for ServerExtension {
             ExtensionType::TransportParametersDraft => {
                 Self::TransportParametersDraft(sub.rest().to_vec())
             }
-            ExtensionType::TCPLS => Self::Tcpls(TcplsExtension::read(typ, &mut sub)),
+            ExtensionType::TCPLS => Self::Tcpls,
+            ExtensionType::TCPLS_JOIN => Self::TcplsJoin(TcplsExtension::read(typ, &mut sub)),
             ExtensionType::TCPLS_TOKEN => Self::TcplsToken(TcplsExtension::read(typ, &mut sub)),
             ExtensionType::EarlyData => Self::EarlyData,
             _ => Self::Unknown(UnknownExtension::read(typ, &mut sub)),
@@ -1063,12 +1072,8 @@ impl ClientHelloPayload {
         }
     }
 
-    pub fn get_tcpls_extension(&self) -> Option<&TcplsExtension> {
-        let ext = self.find_extension(ExtensionType::TCPLS)?;
-        match *ext {
-            ClientExtension::Tcpls(ref tcpls ) => Some(tcpls),
-            _ => None,
-        }
+    pub fn get_tcpls_extension(&self) -> Option<&ClientExtension> {
+        self.find_extension(ExtensionType::TCPLS)
     }
 
     pub fn psk_mode_offered(&self, mode: PSKKeyExchangeMode) -> bool {

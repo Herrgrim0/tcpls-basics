@@ -363,7 +363,7 @@ impl State<ClientConnectionData> for ExpectEncryptedExtensions {
 
         for ext in exts {
             match *ext {
-                ServerExtension::Tcpls(ref _tcpls ) => cx.common.set_other_tcpls(),
+                ServerExtension::Tcpls => cx.common.set_other_tcpls(),
                 ServerExtension::TcplsToken(ref _tcpls) => {/*dbg!("Tcpls Token found");*/continue;},
                 _ => continue,
             }

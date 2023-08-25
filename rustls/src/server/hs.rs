@@ -190,11 +190,8 @@ impl ExtensionProcessing {
         // if client and server want and can communicate via tcpls
         if hello.find_extension(ExtensionType::TCPLS).is_some() && config.tcpls_enabled{
             cx.common.set_other_tcpls();
-            self.exts.push(
-                ServerExtension::Tcpls( 
-                    TcplsExtension{typ: ExtensionType::TCPLS, payload: Payload(vec![0])} 
-                )
-            );
+            self.exts.push(ServerExtension::Tcpls);
+            
             self.exts.push(
                 ServerExtension::TcplsToken(
                     TcplsExtension{typ: ExtensionType::TCPLS_TOKEN, payload: Payload(vec![0])}

@@ -12,7 +12,7 @@ use crate::msgs::base::Payload;
 use crate::msgs::enums::{AlertDescription, Compression, ContentType};
 use crate::msgs::enums::{ECPointFormat, PSKKeyExchangeMode};
 use crate::msgs::enums::{ExtensionType, HandshakeType};
-use crate::msgs::handshake::{CertificateStatusRequest, ClientSessionTicket, SCTList, TcplsExtension};
+use crate::msgs::handshake::{CertificateStatusRequest, ClientSessionTicket, SCTList};
 use crate::msgs::handshake::{ClientExtension, HasServerExtensions};
 use crate::msgs::handshake::{ClientHelloPayload, HandshakeMessagePayload, HandshakePayload};
 use crate::msgs::handshake::{ConvertProtocolNameList, ProtocolNameList};
@@ -327,9 +327,9 @@ fn emit_client_hello_for_retry(
 
     if config.tcpls_enabled {
         // Put TCPLS Extension in ClientHello extension
-        exts.push(ClientExtension::Tcpls(
-                TcplsExtension {typ: ExtensionType::TCPLS, payload: Payload(vec![0]) })
-            );
+        exts.push(ClientExtension::Tcpls);
+               // TcplsExtension {typ: ExtensionType::TCPLS, payload: Payload(vec![0]) })
+           // );
     }
     
 
