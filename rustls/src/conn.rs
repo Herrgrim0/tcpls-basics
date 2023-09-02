@@ -824,7 +824,7 @@ pub struct CommonState {
     pub(crate) sendable_tls: ChunkVecBuffer,
     queued_key_update_message: Option<Vec<u8>>,
     pub(crate) other_tcpls_enabled: bool,
-    pub(crate) _tcpls_token: Vec<u8>,
+    pub(crate) tcpls_token: u64,
 
     #[allow(dead_code)] // only read for QUIC
     /// Protocol whose key schedule should be used. Unused for TLS < 1.3.
@@ -858,7 +858,7 @@ impl CommonState {
             sendable_tls: ChunkVecBuffer::new(Some(DEFAULT_BUFFER_LIMIT)),
             queued_key_update_message: None,
             other_tcpls_enabled: false,
-            _tcpls_token: vec![0],
+            tcpls_token: 0,
 
             protocol: Protocol::Tcp,
             #[cfg(feature = "quic")]
@@ -882,8 +882,8 @@ impl CommonState {
     }
 
     /// Set the tcpls token for the session
-    pub fn set_tcpls_token(&mut self, tcpls_token: Vec<u8>) {
-        self._tcpls_token = tcpls_token;
+    pub fn set_tcpls_token(&mut self, tcpls_token: u64) {
+        self.tcpls_token = tcpls_token;
     }
 
     /// Returns true if the connection is currently performing the TLS handshake.

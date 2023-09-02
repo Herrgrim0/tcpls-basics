@@ -199,7 +199,7 @@ impl ExtensionProcessing {
             self.exts
                 .push(ServerExtension::TcplsToken(TcplsExtension {
                     typ: ExtensionType::TCPLS_TOKEN,
-                    payload: Payload(vec![0]),
+                    payload: Payload(u64::to_be_bytes(cx.common.tcpls_token).to_vec()),
                 }))
         }
 
