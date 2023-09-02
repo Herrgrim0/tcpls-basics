@@ -13,6 +13,7 @@ pub mod utils;
 #[cfg(test)]
 pub mod tcpls_test;
 
+use crate::rand;
 use crate::tcpls::error::Error;
 use crate::tcpls::stream::{TcplsStream, TcplsStreamBuilder};
 use crate::tcpls::utils::{constant, conversion};
@@ -64,6 +65,9 @@ pub struct TcplsConnection {
 
     // keep track of the last ack received for demo purpose
     highest_record_sequence_received: u64,
+
+    // Token for the session
+    session_token: u64,
 }
 
 impl TcplsConnection {
@@ -72,6 +76,10 @@ impl TcplsConnection {
         let stream1 = TcplsStreamBuilder::new(0);
         let mut streams = HashMap::new();
         streams.insert(0, stream1.build());
+        let session_token = match role {
+            Role::Client => 0,
+            Role::Server => rand::random_u64().expect("Failed to create token"),
+        };
         Self {
             conn_id,
             streams,
@@ -82,6 +90,7 @@ impl TcplsConnection {
             role,
             last_stream_processed: 0,
             highest_record_sequence_received: 0,
+            session_token,
         }
     }
 
@@ -382,5 +391,19 @@ impl TcplsConnection {
     ///give the role of the TcplsConnection instance
     pub fn get_role(self) -> Role {
         self.role
+    }
+
+    /// return the tcpls session token
+    pub fn get_session_token(&self) -> u64 {
+        self.session_token
+    }
+
+    /// set a new session token if it is the client else keep the
+    /// one generated at the start of the server
+    pub fn set_session_token(&mut self, new_sess_token: u64) {
+        self.session_token = match self.role {
+            Role::Client => new_sess_token,
+            Role::Server => self.session_token,
+        }
     }
 }
