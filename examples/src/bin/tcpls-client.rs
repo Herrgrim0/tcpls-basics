@@ -6,7 +6,6 @@ use mio::Poll;
 /// to show tcpls features
 use std::process;
 use std::sync::Arc;
-use std::time::Duration;
 //use rustls::ClientConfig;
 use rustls::tcpls::stream::TcplsStreamBuilder;
 use rustls::tcpls::utils::constant;
@@ -219,8 +218,15 @@ impl TcplsClient {
                         std::str::from_utf8(buf).expect("Failed to read utf-8 sequence")
                     );
                 }
-                Mode::Streams | Mode::Ping => {
-                    //demo_println!("record received:\n{:?}", plaintext);
+                Mode::Ping => {
+                    demo_println!("record received:\n{:?}", plaintext);
+                    demo_println!(
+                        "Ack with record sequence {} received",
+                        self.tcpls
+                            .get_highest_record_sequence_received()
+                    );
+                }
+                Mode::Streams => {
                     demo_println!(
                         "Ack with record sequence {} received",
                         self.tcpls
@@ -572,8 +578,7 @@ fn ping_server(tlsclient: &mut TcplsClient, poll: &mut Poll, events: &mut Events
     tlsclient.register(poll.registry());
     tlsclient.tcpls.inv_ack();
     while index < 10 {
-        poll.poll(events, Some(Duration::from_millis(10)))
-            .unwrap();
+        poll.poll(events, None).unwrap();
 
         for ev in events.iter() {
             tlsclient.ready(ev);
@@ -636,7 +641,7 @@ fn main() {
 
     let mut tlsclient = TcplsClient::new(sock, server_name, config);
     let mut poll = mio::Poll::new().unwrap();
-    let mut events = mio::Events::with_capacity(32);
+    let mut events = mio::Events::with_capacity(64);
 
     // Where serious things begin
 
@@ -676,8 +681,7 @@ fn main() {
         tlsclient.register(poll.registry());
         debug!("Sending file");
         loop {
-            poll.poll(&mut events, Some(Duration::from_millis(100)))
-                .unwrap();
+            poll.poll(&mut events, None).unwrap();
             if !tlsclient.tls_conn.is_handshaking() {
                 tlsclient.send_data();
             } else {
@@ -717,8 +721,7 @@ fn main() {
 
         tlsclient.register(poll.registry());
         loop {
-            poll.poll(&mut events, Some(Duration::from_millis(100)))
-                .unwrap();
+            poll.poll(&mut events, None).unwrap();
 
             for ev in events.iter() {
                 tlsclient.ready(ev);
@@ -730,8 +733,7 @@ fn main() {
         }
     }
     loop {
-        poll.poll(&mut events, Some(Duration::from_millis(100)))
-            .unwrap();
+        poll.poll(&mut events, None).unwrap();
 
         for ev in events.iter() {
             tlsclient.ready(ev);
