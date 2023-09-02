@@ -390,7 +390,7 @@ fn bench_handshake(params: &BenchmarkParam, clientauth: ClientAuth, resume: Resu
     for _ in 0..rounds {
         let server_name = "localhost".try_into().unwrap();
         let mut client = ClientConnection::new(Arc::clone(&client_config), server_name).unwrap();
-        let mut server = ServerConnection::new(Arc::clone(&server_config)).unwrap();
+        let mut server = ServerConnection::new(Arc::clone(&server_config), 0).unwrap();
 
         server_time += time(|| {
             transfer(&mut client, &mut server, None);
@@ -460,7 +460,7 @@ fn bench_bulk(params: &BenchmarkParam, plaintext_size: u64, max_fragment_size: O
     let server_name = "localhost".try_into().unwrap();
     let mut client = ClientConnection::new(client_config, server_name).unwrap();
     client.set_buffer_limit(None);
-    let mut server = ServerConnection::new(Arc::clone(&server_config)).unwrap();
+    let mut server = ServerConnection::new(Arc::clone(&server_config), 0).unwrap();
     server.set_buffer_limit(None);
 
     do_handshake(&mut client, &mut server);
@@ -524,7 +524,7 @@ fn bench_memory(params: &BenchmarkParam, conn_count: u64) {
     let mut clients = Vec::with_capacity(conn_count);
 
     for _i in 0..conn_count {
-        servers.push(ServerConnection::new(Arc::clone(&server_config)).unwrap());
+        servers.push(ServerConnection::new(Arc::clone(&server_config), 0).unwrap());
         let server_name = "localhost".try_into().unwrap();
         clients.push(ClientConnection::new(Arc::clone(&client_config), server_name).unwrap());
     }
