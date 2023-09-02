@@ -303,7 +303,6 @@ pub struct ServerConfig {
     ///
     /// The default is false.
     pub tcpls_enabled: bool,
-    //tcpls_token: u64,
 }
 
 impl fmt::Debug for ServerConfig {
@@ -379,18 +378,16 @@ pub struct ServerConnection {
 impl ServerConnection {
     /// Make a new ServerConnection.  `config` controls how
     /// we behave in the TLS protocol.
-    pub fn new(config: Arc<ServerConfig>, tcpls_token: u64) -> Result<Self, Error> {
-        Self::from_config(config, vec![], tcpls_token)
+    pub fn new(config: Arc<ServerConfig>) -> Result<Self, Error> {
+        Self::from_config(config, vec![])
     }
 
     fn from_config(
         config: Arc<ServerConfig>,
         extra_exts: Vec<ServerExtension>,
-        tcpls_token: u64,
     ) -> Result<Self, Error> {
         let mut common = CommonState::new(Side::Server);
         common.set_max_fragment_size(config.max_fragment_size)?;
-        common.set_tcpls_token(tcpls_token);
         #[cfg(feature = "secret_extraction")]
         {
             common.enable_secret_extraction = config.enable_secret_extraction;
