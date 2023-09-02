@@ -882,7 +882,7 @@ impl CommonState {
     }
 
     /// Set the tcpls token for the session
-    pub fn set_tcpls_token(&mut self, tcpls_token : Vec<u8>) {
+    pub fn set_tcpls_token(&mut self, tcpls_token: Vec<u8>) {
         self._tcpls_token = tcpls_token;
     }
 

@@ -1,6 +1,5 @@
 /// Handle errors of tcpls
-#[derive(Debug)]
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum Error {
     /// The buffer has not enough place to accept a
     /// new TCPLS frame

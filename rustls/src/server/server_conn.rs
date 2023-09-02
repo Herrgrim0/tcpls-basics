@@ -300,7 +300,7 @@ pub struct ServerConfig {
 
     /// Whether the server wants or
     /// can communicate via TCPLS
-    /// 
+    ///
     /// The default is false.
     pub tcpls_enabled: bool,
 }
@@ -404,15 +404,20 @@ impl ServerConnection {
     /// if both client and server are tcpls ready
     /// return true
     pub fn is_ready_for_tcpls(&self, config: &ServerConfig) -> bool {
-        self.inner.common_state.other_tcpls_enabled && config.tcpls_enabled
+        self.inner
+            .common_state
+            .other_tcpls_enabled
+            && config.tcpls_enabled
     }
 
     /// server received tcpls extension
     pub fn client_accept_tcpls(&self) -> bool {
-        self.inner.common_state.other_tcpls_enabled
+        self.inner
+            .common_state
+            .other_tcpls_enabled
     }
 
-    /// get tls record seq 
+    /// get tls record seq
     pub fn get_tls_record_seq(&self) -> u64 {
         self.inner.record_layer.get_seq_nbr()
     }

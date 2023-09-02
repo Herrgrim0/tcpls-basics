@@ -15,11 +15,11 @@ use crate::msgs::ccs::ChangeCipherSpecPayload;
 use crate::msgs::enums::AlertDescription;
 use crate::msgs::enums::KeyUpdateRequest;
 use crate::msgs::enums::{ContentType, ExtensionType, HandshakeType};
-use crate::msgs::handshake::{ClientExtension, ServerExtension};
 use crate::msgs::handshake::DigitallySignedStruct;
 use crate::msgs::handshake::EncryptedExtensions;
 use crate::msgs::handshake::NewSessionTicketPayloadTLS13;
 use crate::msgs::handshake::{CertificateEntry, CertificatePayloadTLS13};
+use crate::msgs::handshake::{ClientExtension, ServerExtension};
 use crate::msgs::handshake::{HandshakeMessagePayload, HandshakePayload};
 use crate::msgs::handshake::{HasServerExtensions, ServerHelloPayload};
 use crate::msgs::handshake::{PresharedKeyIdentity, PresharedKeyOffer};
@@ -364,11 +364,13 @@ impl State<ClientConnectionData> for ExpectEncryptedExtensions {
         for ext in exts {
             match *ext {
                 ServerExtension::Tcpls => cx.common.set_other_tcpls(),
-                ServerExtension::TcplsToken(ref _tcpls) => {/*dbg!("Tcpls Token found");*/continue;},
+                ServerExtension::TcplsToken(ref _tcpls) => {
+                    /*dbg!("Tcpls Token found");*/
+                    continue;
+                }
                 _ => continue,
             }
-        };
-        
+        }
 
         #[cfg(feature = "quic")]
         {
