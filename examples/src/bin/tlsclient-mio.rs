@@ -3,9 +3,9 @@ use std::sync::Arc;
 
 use log::debug;
 use mio::net::TcpStream;
-use rustls::ClientConfig;
 use rustls::tcpls::Role;
 use rustls::tcpls::TcplsConnection;
+use rustls::ClientConfig;
 
 use std::fs;
 use std::io;
@@ -71,15 +71,27 @@ impl TlsClient {
         let mut buf = Vec::new();
         let len = rd.read_to_end(&mut buf)?;
         debug!("writing to buf");
-        self.tcpls_conn.update_tls_seq(self.tls_conn.get_tls_record_seq());
-        if self.tls_conn.is_ready_for_tcpls(&self.tls_cfg) {
+        self.tcpls_conn
+            .update_tls_seq(self.tls_conn.get_tls_record_seq());
+        if self
+            .tls_conn
+            .is_ready_for_tcpls(&self.tls_cfg)
+        {
             self.tcpls_conn.set_data(&buf);
-            self.tls_conn.writer().write_all(&self.tcpls_conn.create_record().expect("Failed to create record")).unwrap();
+            self.tls_conn
+                .writer()
+                .write_all(
+                    &self
+                        .tcpls_conn
+                        .create_record()
+                        .expect("Failed to create record"),
+                )
+                .unwrap();
         } else {
             self.tls_conn
-            .writer()
-            .write_all(&buf)
-            .unwrap();
+                .writer()
+                .write_all(&buf)
+                .unwrap();
         }
         debug!("data sent!");
         Ok(len)
@@ -133,8 +145,13 @@ impl TlsClient {
                 .reader()
                 .read_exact(&mut plaintext)
                 .unwrap();
-            if self.tls_conn.is_ready_for_tcpls(&self.tls_cfg) {
-                let _ = self.tcpls_conn.process_record(&plaintext);
+            if self
+                .tls_conn
+                .is_ready_for_tcpls(&self.tls_cfg)
+            {
+                let _ = self
+                    .tcpls_conn
+                    .process_record(&plaintext);
             }
             io::stdout()
                 .write_all(&plaintext)
@@ -521,7 +538,9 @@ fn main() {
         /*io::stdin().read_line(&mut input).expect("Failed to read line");*/
         let mut stdin = io::stdin();
 
-        tlsclient.read_source_to_end(&mut stdin).unwrap();
+        tlsclient
+            .read_source_to_end(&mut stdin)
+            .unwrap();
     }
 
     let mut poll = mio::Poll::new().unwrap();
@@ -534,7 +553,5 @@ fn main() {
             tlsclient.ready(ev);
             tlsclient.reregister(poll.registry());
         }
-        
     }
 }
-

@@ -76,7 +76,8 @@ impl TlsServer {
                     let token = mio::Token(self.next_id);
                     self.next_id += 1;
 
-                    let mut connection = OpenConnection::new(socket, token, mode, tls_conn, self.tcpls_enabled);
+                    let mut connection =
+                        OpenConnection::new(socket, token, mode, tls_conn, self.tcpls_enabled);
                     connection.register(registry);
                     self.connections
                         .insert(token, connection);
@@ -111,13 +112,16 @@ impl TlsServer {
     fn _is_tcpls_enabled(&self, event: &mio::event::Event) -> bool {
         let token = event.token();
         if self.connections.contains_key(&token)
-           && self.connections
+            && self
+                .connections
                 .get(&token)
                 .unwrap()
-                .tls_conn.is_ready_for_tcpls(&self.tls_config) {
-                    return true;
-                }
-            false
+                .tls_conn
+                .is_ready_for_tcpls(&self.tls_config)
+        {
+            return true;
+        }
+        false
     }
 
     fn set_tcpls(&mut self, is_enabled: bool) {
@@ -283,7 +287,7 @@ impl OpenConnection {
                     Ok(v) => v,
                     Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
                 };
-                println!("read plaintext: {}\n",s);
+                println!("read plaintext: {}\n", s);
                 self.incoming_plaintext(&buf);
             }
         }
@@ -330,8 +334,11 @@ impl OpenConnection {
             ServerMode::Echo => {
                 let tcpls_buf: Vec<u8> = Vec::new();
                 if self.tls_conn.client_accept_tcpls() && self.tcpls_enabled {
-                    self.tcpls.update_tls_seq(self.tls_conn.get_tls_record_seq());
-                    self.tcpls.create_record().expect("Failed to create a record");
+                    self.tcpls
+                        .update_tls_seq(self.tls_conn.get_tls_record_seq());
+                    self.tcpls
+                        .create_record()
+                        .expect("Failed to create a record");
                 }
                 self.tls_conn
                     .writer()
@@ -704,7 +711,7 @@ fn main() {
     if args.flag_tcpls {
         tlsserv.set_tcpls(true);
     }
-    
+
     let mut events = mio::Events::with_capacity(256);
     loop {
         poll.poll(&mut events, None).unwrap();
