@@ -25,5 +25,11 @@ pub(crate) fn random_u32() -> Result<u32, GetRandomFailed> {
     codec::decode_u32(&buf).ok_or(GetRandomFailed)
 }
 
+pub(crate) fn random_u64() -> Result<u64, GetRandomFailed> {
+    let mut buf = [0u8; 8];
+    fill_random(&mut buf)?;
+    codec::decode_u64(&buf).ok_or(GetRandomFailed)
+}
+
 #[derive(Debug)]
 pub struct GetRandomFailed;
