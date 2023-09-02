@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::time::Duration;
 
 use mio::net::{TcpListener, TcpStream};
 use rustls::tcpls::Role;
@@ -84,12 +83,12 @@ impl TcplsServer {
                     debug!("Accepting new connection from {:?}", addr);
 
                     let tcpls_conn = TcplsConnection::new(0, Role::Server);
-                    demo_println!("{}", tcpls_conn.get_session_token());
-                    let tls_conn = rustls::ServerConnection::new(
-                        Arc::clone(&self.tls_config),
-                        tcpls_conn.get_session_token(),
-                    )
-                    .unwrap();
+                    //demo_println!("{}", tcpls_conn.get_session_token());
+
+                    let mut tls_conn =
+                        rustls::ServerConnection::new(Arc::clone(&self.tls_config)).unwrap();
+                    tls_conn.set_tcpls_token(tcpls_conn.get_session_token());
+                    println!("WHERE AM I ?");
                     let mode = self.mode.clone();
 
                     let token = mio::Token(self.next_id);
@@ -768,8 +767,7 @@ fn main() {
 
     let mut events = mio::Events::with_capacity(256);
     loop {
-        poll.poll(&mut events, Some(Duration::from_millis(100)))
-            .unwrap();
+        poll.poll(&mut events, None).unwrap();
 
         for event in events.iter() {
             match event.token() {
