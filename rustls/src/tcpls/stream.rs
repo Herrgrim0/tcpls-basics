@@ -69,9 +69,9 @@ impl TcplsStream {
             return None;
         };
 
-        if self.snd_data[self.rcv_offset as usize..].len() + constant::STREAM_HEADER_SIZE > max_size
+        if self.snd_data[self.snd_offset as usize..].len() + constant::STREAM_HEADER_SIZE > max_size
         {
-            let data_size = self.rcv_offset as usize + max_size - constant::STREAM_HEADER_SIZE;
+            let data_size = self.snd_offset as usize + max_size - constant::STREAM_HEADER_SIZE;
             frame.extend_from_slice(&self.snd_data[self.snd_offset as usize..data_size]);
         } else {
             frame.extend_from_slice(&self.snd_data[self.snd_offset as usize..]);
@@ -80,7 +80,7 @@ impl TcplsStream {
 
         let cp_len = frame.len() as u16;
         self.add_meta_data_to_frame(&mut frame, cp_len, typ);
-        self.rcv_offset += cp_len as u64;
+        self.snd_offset += cp_len as u64;
 
         trace!(
             "stream {} created data frame of len {}",
@@ -138,8 +138,13 @@ impl TcplsStream {
     }
 
     /// return current offset
-    pub fn get_offset(&self) -> u64 {
+    pub fn get_snd_offset(&self) -> u64 {
         self.snd_offset
+    }
+
+    /// return current offset of data received
+    pub fn get_rcv_offset(&self) -> u64 {
+        self.rcv_offset
     }
 }
 
