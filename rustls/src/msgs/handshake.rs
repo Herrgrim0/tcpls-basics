@@ -205,11 +205,7 @@ impl TcplsExtension {
     }
 
     fn read(typ: ExtensionType, r: &mut Reader) -> Self {
-        let payload: Payload;
-        match typ {
-            ExtensionType::TCPLS => {payload = Payload::read(r)},
-            _ => {payload = Payload::read(r)},
-        };
+        let payload: Payload = Payload::read(r);
         Self { typ, payload }
     }
 }
@@ -630,7 +626,7 @@ impl Codec for ClientExtension {
         self.get_type().encode(bytes);
 
         let mut sub: Vec<u8> = Vec::new();
-        
+
         match *self {
             Self::ECPointFormats(ref r) => r.encode(&mut sub),
             Self::NamedGroups(ref r) => r.encode(&mut sub),
@@ -709,8 +705,9 @@ impl Codec for ClientExtension {
             }
             ExtensionType::EarlyData if !sub.any_left() => Self::EarlyData,
             ExtensionType::TCPLS => Self::Tcpls,
-            ExtensionType::TCPLS_JOIN | ExtensionType::TCPLS_TOKEN => 
-                Self::TcplsExt(TcplsExtension::read(typ, &mut sub)),
+            ExtensionType::TCPLS_JOIN | ExtensionType::TCPLS_TOKEN => {
+                Self::TcplsExt(TcplsExtension::read(typ, &mut sub))
+            }
             _ => Self::Unknown(UnknownExtension::read(typ, &mut sub)),
         };
 
@@ -825,7 +822,7 @@ impl Codec for ServerExtension {
                 sub.extend_from_slice(r);
             }
             Self::TcplsJoin(ref r) => r.encode(&mut sub),
-            Self::TcplsToken(ref r) => {r.encode(&mut sub)},
+            Self::TcplsToken(ref r) => r.encode(&mut sub),
             Self::Unknown(ref r) => r.encode(&mut sub),
         }
 
