@@ -328,8 +328,6 @@ fn emit_client_hello_for_retry(
     if config.tcpls_enabled {
         // Put TCPLS Extension in ClientHello extension
         exts.push(ClientExtension::Tcpls);
-        // TcplsExtension {typ: ExtensionType::TCPLS, payload: Payload(vec![0]) })
-        // );
     }
 
     // Note what extensions we sent.
