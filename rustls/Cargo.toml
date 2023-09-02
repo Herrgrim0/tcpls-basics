@@ -16,6 +16,7 @@ build = "build.rs"
 rustversion = { version = "1.0.6", optional = true }
 
 [dependencies]
+cargo-watch = "8.4.1"
 log = { version = "0.4.4", optional = true }
 ring = "0.16.20"
 sct = "0.7.0"
