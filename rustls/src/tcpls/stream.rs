@@ -2,6 +2,8 @@ use log::trace;
 
 /// Management of a TCPLS stream
 use crate::tcpls::utils::*;
+const OFFSET_SIZE: usize = 8;
+const LENGTH_SIZE: usize = 2;
 
 // Max size of a TLS record minus size of
 // a TCPLS headers for stream data frame (16 bytes)
@@ -37,13 +39,13 @@ impl TcplsStream {
 
         let stream_offset: u64 = conversion::slice_to_u64(&new_data[cursor - 8..cursor])
             .expect("Failed to convert bytes");
-        cursor -= 8;
+        cursor -= OFFSET_SIZE;
 
         self.rcv_offset = stream_offset;
 
         let stream_len: u16 = conversion::slice_to_u16(&new_data[cursor - 2..cursor])
             .expect("Failed to convert bytes");
-        cursor -= 2;
+        cursor -= LENGTH_SIZE;
         trace!(
             "{} - cursor: {}, stream_len: {}, offset: {}",
             self.stream_id,
@@ -55,7 +57,7 @@ impl TcplsStream {
         self.rcv_data
             .extend_from_slice(&new_data[cursor - stream_len as usize..cursor]);
 
-        stream_len as usize + 10
+        stream_len as usize + OFFSET_SIZE + LENGTH_SIZE
     }
 
     /// return a vec that fits in a TLS record
