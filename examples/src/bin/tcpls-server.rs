@@ -83,14 +83,20 @@ impl TcplsServer {
                 Ok((socket, addr)) => {
                     debug!("Accepting new connection from {:?}", addr);
 
-                    let tls_conn =
-                        rustls::ServerConnection::new(Arc::clone(&self.tls_config)).unwrap();
+                    let tcpls_conn = TcplsConnection::new(0, Role::Server);
+                    demo_println!("{}", tcpls_conn.get_session_token());
+                    let tls_conn = rustls::ServerConnection::new(
+                        Arc::clone(&self.tls_config),
+                        tcpls_conn.get_session_token(),
+                    )
+                    .unwrap();
                     let mode = self.mode.clone();
 
                     let token = mio::Token(self.next_id);
                     self.next_id += 1;
 
-                    let mut connection = OpenConnection::new(socket, token, mode, tls_conn);
+                    let mut connection =
+                        OpenConnection::new(socket, token, mode, tls_conn, tcpls_conn);
                     connection.register(registry);
                     self.connections
                         .insert(token, connection);
@@ -192,6 +198,7 @@ impl OpenConnection {
         token: mio::Token,
         mode: ServerMode,
         tls_conn: rustls::ServerConnection,
+        tcpls: TcplsConnection,
     ) -> Self {
         let back = open_back(&mode);
         Self {
@@ -202,7 +209,7 @@ impl OpenConnection {
             mode,
             tls_conn,
             back,
-            tcpls: TcplsConnection::new(0, Role::Server),
+            tcpls,
         }
     }
 
