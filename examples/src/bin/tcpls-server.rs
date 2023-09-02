@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use mio::net::{TcpListener, TcpStream};
 use rustls::tcpls::Role;
@@ -125,13 +126,16 @@ impl TcplsServer {
     fn _is_tcpls_enabled(&self, event: &mio::event::Event) -> bool {
         let token = event.token();
         if self.connections.contains_key(&token)
-           && self.connections
+            && self
+                .connections
                 .get(&token)
                 .unwrap()
-                .tls_conn.is_ready_for_tcpls(&self.tls_config) {
-                    return true;
-                }
-            false
+                .tls_conn
+                .is_ready_for_tcpls(&self.tls_config)
+        {
+            return true;
+        }
+        false
     }
 
     fn set_tcpls(&mut self, is_enabled: bool) {
@@ -285,17 +289,21 @@ impl OpenConnection {
                     .unwrap();
 
                 debug!("plaintext read {:?}", buf.len());
-                
-                self.tcpls.update_tls_seq(self.tls_conn.get_tls_record_seq());
-                
+
+                self.tcpls
+                    .update_tls_seq(self.tls_conn.get_tls_record_seq());
+
                 let _ = self.tcpls.process_record(&buf);
 
                 match self.mode {
                     ServerMode::Echo => {
-                        let s = match std::str::from_utf8(self.tcpls.get_stream_data(0)
-                                                            .expect("unknown stream id")) {
-                        Ok(v) => v,
-                        Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
+                        let s = match std::str::from_utf8(
+                            self.tcpls
+                                .get_stream_data(0)
+                                .expect("unknown stream id"),
+                        ) {
+                            Ok(v) => v,
+                            Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
                         };
                         if buf.len() < 8 && *buf.iter().max().unwrap_or(&0) == 1 {
                             demo_println!("record received: {:?}", &buf);
@@ -303,12 +311,16 @@ impl OpenConnection {
                             demo_println!("received {s}");
                             self.tcpls.set_data(&buf);
                         }
-                    },
+                    }
                     _ => {
                         demo_println!("Received record of len {}", buf.len());
-                        demo_println!("{}", self.tcpls.get_last_stream_processed_info());
+                        demo_println!(
+                            "{}",
+                            self.tcpls
+                                .get_last_stream_processed_info()
+                        );
                     }
-                } 
+                }
                 self.incoming_plaintext(&buf);
             }
         }
@@ -353,16 +365,25 @@ impl OpenConnection {
     fn incoming_plaintext(&mut self, buf: &[u8]) {
         match self.mode {
             ServerMode::Echo => {
-                let tcpls_buf = self.tcpls.create_record().expect("Failed to create record");
+                let tcpls_buf = self
+                    .tcpls
+                    .create_record()
+                    .expect("Failed to create record");
 
                 let is_ping_or_padd = *buf.iter().max().unwrap_or(&0) == 1;
                 // we check that the received data are
                 // only padding or ping frame
-                
+
                 if buf.len() < 8 && is_ping_or_padd {
-                    demo_println!("Sending ack with highest record sequence: {}", self.tcpls.get_highest_tls_record_seq());
+                    demo_println!(
+                        "Sending ack with highest record sequence: {}",
+                        self.tcpls.get_highest_tls_record_seq()
+                    );
                 } else {
-                    demo_println!("sending {}",std::str::from_utf8(buf).expect("Failed to read bytes"));
+                    demo_println!(
+                        "sending {}",
+                        std::str::from_utf8(buf).expect("Failed to read bytes")
+                    );
                 }
                 debug!("{:?}, len {}", &tcpls_buf, &tcpls_buf.len());
 
@@ -381,10 +402,14 @@ impl OpenConnection {
             }
             ServerMode::Receive => {
                 let tls_record_seq = self.tls_conn.get_tls_record_seq();
-                self.tcpls.update_tls_seq(tls_record_seq);
+                self.tcpls
+                    .update_tls_seq(tls_record_seq);
                 demo_println!("sending an ack with record sequence: {}", tls_record_seq);
                 self.tcpls.add_ack_frame();
-                let rec = self.tcpls.create_record().expect("Failed to create record");
+                let rec = self
+                    .tcpls
+                    .create_record()
+                    .expect("Failed to create record");
                 //demo_println!("record: {:?}", rec);
                 self.tls_conn
                     .writer()
@@ -681,7 +706,6 @@ fn make_config(args: &Args) -> Arc<rustls::ServerConfig> {
         config.ticketer = rustls::Ticketer::new().unwrap();
     }
 
-
     config.tcpls_enabled = true;
 
     config.alpn_protocols = args
@@ -737,7 +761,8 @@ fn main() {
 
     let mut events = mio::Events::with_capacity(256);
     loop {
-        poll.poll(&mut events, None).unwrap();
+        poll.poll(&mut events, Some(Duration::from_millis(100)))
+            .unwrap();
 
         for event in events.iter() {
             match event.token() {
