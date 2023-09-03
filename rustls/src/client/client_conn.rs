@@ -575,6 +575,11 @@ impl ClientConnection {
     pub fn get_tls_record_seq(&self) -> u64 {
         self.inner.record_layer.get_seq_nbr()
     }
+
+    /// return the tcpls token send by the server
+    pub fn get_tcpls_session_token(&self) -> u64 {
+        self.inner.tcpls_token
+    }
 }
 
 impl Deref for ClientConnection {
