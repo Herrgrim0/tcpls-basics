@@ -712,6 +712,7 @@ fn main() {
         ping_server(&mut tlsclient, &mut poll, &mut events);
     } else {
         demo_println!("Default feature enabled");
+        let mut tcpls_token_set: bool = false;
         // send a string over a TCPLS connection
         let mut stdin = io::stdin();
 
@@ -721,6 +722,15 @@ fn main() {
 
         tlsclient.register(poll.registry());
         loop {
+            if !tlsclient.tls_conn.is_handshaking() && !tcpls_token_set {
+                tlsclient.tcpls.set_session_token(
+                    tlsclient
+                        .tls_conn
+                        .get_tcpls_session_token(),
+                );
+                tcpls_token_set = true;
+                demo_println!("TCPLS token: {}", tlsclient.tcpls.get_session_token());
+            }
             poll.poll(&mut events, None).unwrap();
 
             for ev in events.iter() {
@@ -732,6 +742,9 @@ fn main() {
                 .update_tls_seq(tlsclient.tls_conn.get_tls_record_seq());
         }
     }
+
+    // fallback loop when program finishes to avoid
+    // the lost of the last messages.
     loop {
         poll.poll(&mut events, None).unwrap();
 

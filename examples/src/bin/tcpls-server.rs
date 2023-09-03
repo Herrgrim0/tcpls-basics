@@ -88,7 +88,7 @@ impl TcplsServer {
                     let mut tls_conn =
                         rustls::ServerConnection::new(Arc::clone(&self.tls_config)).unwrap();
                     tls_conn.set_tcpls_token(tcpls_conn.get_session_token());
-                    println!("WHERE AM I ?");
+                    demo_println!("TCPLS token: {}", tcpls_conn.get_session_token());
                     let mode = self.mode.clone();
 
                     let token = mio::Token(self.next_id);
