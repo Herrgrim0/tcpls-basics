@@ -12,6 +12,7 @@ use crate::kx;
 use crate::log::{debug, trace, warn};
 use crate::msgs::base::{Payload, PayloadU8};
 use crate::msgs::ccs::ChangeCipherSpecPayload;
+use crate::msgs::codec::decode_u64;
 use crate::msgs::enums::AlertDescription;
 use crate::msgs::enums::KeyUpdateRequest;
 use crate::msgs::enums::{ContentType, ExtensionType, HandshakeType};
@@ -364,9 +365,9 @@ impl State<ClientConnectionData> for ExpectEncryptedExtensions {
         for ext in exts {
             match *ext {
                 ServerExtension::Tcpls => cx.common.set_other_tcpls(),
-                ServerExtension::TcplsToken(ref _tcpls) => {
-                    /*dbg!("Tcpls Token found");*/
-                    continue;
+                ServerExtension::TcplsToken(ref tcpls) => {
+                    let tcpls_token = decode_u64(&tcpls.payload.0).unwrap();
+                    cx.common.set_tcpls_token(tcpls_token);
                 }
                 _ => continue,
             }
