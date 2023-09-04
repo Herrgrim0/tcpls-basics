@@ -121,6 +121,7 @@ impl TcplsConnection {
 
         // control data at the end of the record
         if record.len() < constant::MAX_RECORD_SIZE - self.ctrl_buf.len() {
+            //println!("{} - {:?}", self.ctrl_buf.len(), self.ctrl_buf);
             record.extend_from_slice(&self.ctrl_buf);
             self.ctrl_buf.clear();
         };
@@ -138,6 +139,10 @@ impl TcplsConnection {
 
         let mut i = payload.len() - 1;
 
+        //if i < 40 {
+        //    println!("{:?}", payload);
+        //}
+
         while i > 0 {
             let consumed = self
                 .process_frame(payload, i)
@@ -152,6 +157,7 @@ impl TcplsConnection {
         // safeguard because main loop doesn't handle the
         // first byte of the payload
         if payload[0] == constant::PING_FRAME {
+            //println!("TEST");
             trace!("Ping Frame received");
             self.add_ack_frame();
         }
@@ -179,7 +185,8 @@ impl TcplsConnection {
             }
             constant::STREAM_FRAME | constant::STREAM_FRAME_FIN => {
                 trace!("Stream frame received");
-                consumed += self.recv_stream_frame(payload, i) + 1 // the type frame;
+                consumed += self.recv_stream_frame(payload, i) + 1; // the type frame;
+                self.add_ack_frame();
             }
             constant::NEW_TOKEN_FRAME => unreachable!(),
             constant::CONNECTION_RESET_FRAME => unreachable!(),
@@ -190,7 +197,7 @@ impl TcplsConnection {
                 trace!("Unknown tcpls type {}, index: {}", payload[i], i);
                 return Err(Error::UnknownTcplsType);
             }
-        }
+        };
 
         Ok(consumed)
     }
@@ -247,14 +254,16 @@ impl TcplsConnection {
         } else {
             conversion::slice_to_u64(&payload[offset - 8..offset]).expect("Failed to convert bytes")
         };
+        //println!("HRS received: {}", highest_tls_seq);
 
         trace!(
             "Ack frame received on conn: {}, highest tls seq: {}",
             conn_id,
             highest_tls_seq
         );
-
-        self.highest_record_sequence_received = highest_tls_seq;
+        if highest_tls_seq > self.highest_record_sequence_received {
+            self.highest_record_sequence_received = highest_tls_seq;
+        }
         13 // len of an ACK frame
     }
 
@@ -285,6 +294,7 @@ impl TcplsConnection {
 
     /// add an ACK frame in the sending buffer.
     pub fn add_ack_frame(&mut self) {
+        //println!("ADD ACK FRAME");
         if self.ctrl_buf.len() + 13 < constant::MAX_RECORD_SIZE {
             self.ctrl_buf.extend_from_slice(
                 &self
