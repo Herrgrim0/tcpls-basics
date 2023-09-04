@@ -41,8 +41,6 @@ impl TcplsStream {
             .expect("Failed to convert bytes");
         cursor -= OFFSET_SIZE;
 
-        self.rcv_offset = stream_offset;
-
         let stream_len: u16 = conversion::slice_to_u16(&new_data[cursor - LENGTH_SIZE..cursor])
             .expect("Failed to convert bytes");
         cursor -= LENGTH_SIZE;
@@ -54,12 +52,34 @@ impl TcplsStream {
             self.rcv_offset
         );
 
-        self.rcv_data
-            .extend_from_slice(&new_data[cursor - stream_len as usize..cursor]);
+        self.handle_offset(
+            stream_offset,
+            &new_data[cursor - stream_len as usize..cursor],
+        );
+        //self.rcv_data
+        //    .extend_from_slice(&new_data[cursor - stream_len as usize..cursor]);
 
+        if self.rcv_offset < stream_offset {
+            self.rcv_offset = stream_offset;
+        }
         stream_len as usize + OFFSET_SIZE + LENGTH_SIZE
     }
 
+    // handle out-of-order reception of stream frame.
+    fn handle_offset(&mut self, new_offset: u64, data: &[u8]) {
+        // if we have not the consecutive offset
+        if new_offset > self.rcv_offset + data.len() as u64 {
+            let diff = vec![0_u8; new_offset as usize - self.rcv_data.len()];
+            self.rcv_data.extend_from_slice(&diff); //make room for unreceived frame
+            self.rcv_data.extend_from_slice(data);
+        // if the frame preceed a frame already received and processed
+        } else if new_offset < self.rcv_offset {
+            let offset = new_offset as usize;
+            self.rcv_data[offset..offset + data.len()].clone_from_slice(data);
+        } else {
+            self.rcv_data.extend_from_slice(data);
+        }
+    }
     /// return a vec that fits in a TLS record
     /// max_size is the maximal length the data frame
     /// must be to fit in a record
