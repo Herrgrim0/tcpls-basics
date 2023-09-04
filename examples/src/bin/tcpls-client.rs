@@ -135,8 +135,8 @@ impl TcplsClient {
 
     fn send_data(&mut self) {
         if self.tcpls.has_data() {
-            self.tcpls
-                .update_tls_seq(self.tls_conn.get_tls_record_seq());
+            //self.tcpls
+            //    .update_tls_seq(self.tls_conn.get_tls_record_seq());
             let data = self
                 .tcpls
                 .create_record()
@@ -227,6 +227,7 @@ impl TcplsClient {
                     );
                 }
                 Mode::Streams => {
+                    demo_println!("record received:\n{:?}", plaintext);
                     demo_println!(
                         "Ack with record sequence {} received",
                         self.tcpls
