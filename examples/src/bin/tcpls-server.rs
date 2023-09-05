@@ -299,6 +299,9 @@ impl OpenConnection {
                 self.tcpls
                     .update_tls_seq(self.tls_conn.get_tls_record_seq());
 
+                //if buf.len() > constant::MAX_RECORD_SIZE {
+                //    println!("buf exceed record size");
+                //}
                 let _ = self.tcpls.process_record(&buf);
 
                 match self.mode {
@@ -408,15 +411,15 @@ impl OpenConnection {
             }
             ServerMode::Receive => {
                 let tls_record_seq = self.tls_conn.get_tls_record_seq();
-                self.tcpls
-                    .update_tls_seq(tls_record_seq);
+                //self.tcpls
+                //    .update_tls_seq(tls_record_seq);
                 demo_println!("sending an ack with record sequence: {}", tls_record_seq);
-                self.tcpls.add_ack_frame();
+                //self.tcpls.add_ack_frame();
                 let rec = self
                     .tcpls
                     .create_record()
                     .expect("Failed to create record");
-                //demo_println!("record: {:?}", rec);
+                demo_println!("record: {:?}", rec);
                 self.tls_conn
                     .writer()
                     .write_all(&rec)
